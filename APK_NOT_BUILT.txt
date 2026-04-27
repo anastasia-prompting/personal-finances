@@ -1,0 +1,7 @@
+APK не собран в текущей среде, потому что в контейнере отсутствуют Android SDK, Android Gradle Plugin cache и Gradle/Gradle Wrapper.
+
+Проект можно собрать в Android Studio:
+Build → Build Bundle(s) / APK(s) → Build APK(s)
+
+После сборки файл будет находиться в:
+app/build/outputs/apk/debug/app-debug.apk
