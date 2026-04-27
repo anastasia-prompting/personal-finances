@@ -87,7 +87,13 @@ public class MainActivity extends Activity {
     private void addOperationRow(DataStore.OperationView op) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(18,16,18,16); row.setBackgroundColor(dark ? Color.rgb(45,42,42) : Color.WHITE);
         TextView t = tv(labelForType(op.type) + " • " + money.format(op.amount), 16, 1); row.addView(t);
-        row.addView(tv(op.date + " • " + safe(op.account) + " " + safe(op.fund) + " " + safe(op.category) + "\n" + safe(op.comment), 13, 0));
+        // Счёт и фонд — как раньше; кредит — отдельная сущность (долг/продукт), показываем меткой только если операция к нему привязана.
+        String details = op.date + " • " + safe(op.account) + " " + safe(op.fund);
+        if (op.creditName != null && !op.creditName.isEmpty()) {
+            details += " • Кредит: " + op.creditName;
+        }
+        details += " " + safe(op.category) + "\n" + safe(op.comment);
+        row.addView(tv(details, 13, 0));
         Button del = btn("Удалить"); del.setOnClickListener(v -> { store.deleteOperation(op.id); renderHome(); }); row.addView(del);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0,8,0,8); content.addView(row, lp);
     }
@@ -136,11 +142,17 @@ public class MainActivity extends Activity {
     }
 
     private void exportCsv() {
+        // Сводка на экране не меняем: getSummary() и фокус итерации — полный снимок для файла, а не «хвост» из 20 строк журнала.
         try {
             File f = new File(getExternalFilesDir(null), "finance-auditor-operations.csv");
-            FileWriter w = new FileWriter(f); w.write("date,type,amount,account,fund,category,comment\n");
-            for (DataStore.OperationView op: store.recentOperations()) w.write(op.date + "," + op.type + "," + op.amount + ",\"" + op.account + "\",\"" + op.fund + "\",\"" + op.category + "\",\"" + op.comment + "\"\n");
-            w.close(); toast("CSV сохранён: " + f.getAbsolutePath());
+            FileWriter w = new FileWriter(f);
+            w.write("date,type,amount,account,fund,credit,category,comment\n");
+            for (DataStore.OperationView op : store.allOperationsForExport()) {
+                String credit = op.creditName == null ? "" : op.creditName;
+                w.write(op.date + "," + op.type + "," + op.amount + ",\"" + op.account + "\",\"" + op.fund + "\",\"" + credit + "\",\"" + op.category + "\",\"" + op.comment + "\"\n");
+            }
+            w.close();
+            toast("CSV сохранён: " + f.getAbsolutePath());
         } catch (Exception e) { toast("Не удалось экспортировать CSV: " + e.getMessage()); }
     }
 }

@@ -84,12 +84,57 @@ public class DataStore extends SQLiteOpenHelper {
         return s;
     }
 
+    /**
+     * Одна выборка для экрана и для экспорта: счёт/фонд — это денежные корзины и цели;
+     * обязательство по кредиту хранится отдельно (таблица {@code credits}), поэтому имя кредита
+     * подтягивается своим JOIN — не смешиваем его с названием карты или фонда.
+     */
+    private static final String OPERATIONS_WITH_RELATIONS =
+            "SELECT o.id,o.date,o.type,o.amount,"
+                    + "COALESCE(a.name,''),COALESCE(f.name,''),COALESCE(o.category,''),COALESCE(o.comment,''),"
+                    + "COALESCE(cr.name,'') "
+                    + "FROM operations o "
+                    + "LEFT JOIN accounts a ON o.account_id=a.id "
+                    + "LEFT JOIN funds f ON o.fund_id=f.id "
+                    + "LEFT JOIN credits cr ON o.credit_id=cr.id ";
+
+    /**
+     * Главный экран — только «быстрый хвост»: последние 20 операций, чтобы не перегружать скролл.
+     * Сводки по деньгам по-прежнему считает {@link #getSummary()} — здесь его не трогаем в этой итерации.
+     */
     public List<OperationView> recentOperations() {
-        SQLiteDatabase db = getReadableDatabase(); List<OperationView> list = new ArrayList<>();
-        Cursor c = db.rawQuery("SELECT o.id,o.date,o.type,o.amount,COALESCE(a.name,''),COALESCE(f.name,''),COALESCE(o.category,''),COALESCE(o.comment,'') FROM operations o LEFT JOIN accounts a ON o.account_id=a.id LEFT JOIN funds f ON o.fund_id=f.id ORDER BY o.id DESC LIMIT 20", null);
-        try { while (c.moveToNext()) {
-            OperationView v = new OperationView(); v.id=c.getLong(0); v.date=c.getString(1); v.type=c.getString(2); v.amount=c.getDouble(3); v.account=c.getString(4); v.fund=c.getString(5); v.category=c.getString(6); v.comment=c.getString(7); list.add(v);
-        }} finally { c.close(); }
+        return queryOperations(OPERATIONS_WITH_RELATIONS + "ORDER BY o.id DESC LIMIT 20");
+    }
+
+    /**
+     * Экспорт CSV — полный архив операций для бэкапа или разбора в таблице; ограничение «20» тут
+     * неприменимо, иначе файл не отражал бы историю целиком.
+     */
+    public List<OperationView> allOperationsForExport() {
+        return queryOperations(OPERATIONS_WITH_RELATIONS + "ORDER BY o.id ASC");
+    }
+
+    private List<OperationView> queryOperations(String sql) {
+        SQLiteDatabase db = getReadableDatabase();
+        List<OperationView> list = new ArrayList<>();
+        Cursor c = db.rawQuery(sql, null);
+        try {
+            while (c.moveToNext()) {
+                OperationView v = new OperationView();
+                v.id = c.getLong(0);
+                v.date = c.getString(1);
+                v.type = c.getString(2);
+                v.amount = c.getDouble(3);
+                v.account = c.getString(4);
+                v.fund = c.getString(5);
+                v.category = c.getString(6);
+                v.comment = c.getString(7);
+                v.creditName = c.getString(8);
+                list.add(v);
+            }
+        } finally {
+            c.close();
+        }
         return list;
     }
 
@@ -97,5 +142,9 @@ public class DataStore extends SQLiteOpenHelper {
 
     public static class Item { public long id; public String name; Item(long id, String name){this.id=id;this.name=name;} @Override public String toString(){return name;} }
     public static class Summary { public double totalIncome, totalExpense, fundsTotal, debt, accountBalance, cashBalance; }
-    public static class OperationView { public long id; public String date,type,account,fund,category,comment; public double amount; }
+    public static class OperationView {
+        public long id;
+        public String date, type, account, fund, creditName, category, comment;
+        public double amount;
+    }
 }

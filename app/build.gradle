@@ -1,5 +1,18 @@
 plugins { id 'com.android.application' }
 
-android { namespace 'com.nastia.financialauditor'; compileSdk 35
-    defaultConfig { applicationId 'com.nastia.financialauditor'; minSdk 23; targetSdk 35; versionCode 1; versionName '1.0' }
+android {
+    namespace 'com.nastia.financialauditor'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.nastia.financialauditor'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0'
+    }
+    // AGP 8.x ожидает Java 17 для трансляции исходников приложения.
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
 }

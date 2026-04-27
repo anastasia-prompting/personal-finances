@@ -21,30 +21,39 @@
 - Главный экран с балансами, фондами, долгом, доходами и расходами.
 - Журнал последних операций.
 - Удаление операций.
-- Экспорт CSV в app-specific external storage.
+- Экспорт CSV в app-specific external storage (в файл попадает **полная** история операций; на главном экране по-прежнему показываются только последние 20).
 
 ## Как открыть
 
-Открыть папку `FinancialAIAuditor` в Android Studio.
+Открыть **корень** этого репозитория (в `settings.gradle` имя проекта — `FinancialAIAuditor`) в Android Studio.
 
 ## Как собрать APK
 
 В Android Studio:
 
-1. File → Open → выбрать папку `FinancialAIAuditor`.
+1. File → Open → выбрать папку с проектом (корень, где лежат `settings.gradle` и `app/`).
 2. Дождаться Gradle Sync.
 3. Build → Build Bundle(s) / APK(s) → Build APK(s).
 4. APK будет в `app/build/outputs/apk/debug/app-debug.apk`.
 
-Или через терминал, если Gradle Wrapper создан Android Studio:
+### Gradle Wrapper в репозитории
+
+В корне может не быть каталога `gradle/wrapper` и скриптов `gradlew` / `gradlew.bat` — тогда **командная строка** `./gradlew assembleDebug` заработает только после появления обёртки. Сделать так:
+
+- **Через Android Studio** (удобнее всего): открыть проект и выполнить успешный Gradle Sync; в настройках *File → Settings → Build, Execution, Deployment → Build Tools → Gradle* обычно выбирают **Gradle Wrapper**. После первого успешного синхронизированного билда Studio часто создаёт wrapper в проекте; если нет — см. ниже.
+- **Через установленный Gradle** на машине: в корне проекта выполнить `gradle wrapper` (при необходимости укажите версию Gradle, совместимую с Android Gradle Plugin 8.6.x — см. [таблицу совместимости](https://developer.android.com/build/releases/gradle-plugin#updating-gradle)). Появятся `gradlew`, `gradlew.bat` и `gradle/wrapper/`.
+- **Вручную не копируйте** файлы wrapper из сомнительных источников — лучше сгенерировать командой выше или доверить создание Android Studio.
+
+После появления wrapper:
 
 ```bash
-./gradlew assembleDebug
+gradlew.bat assembleDebug
 ```
+(в PowerShell/CMD из корня проекта; на Linux/macOS — `./gradlew assembleDebug`).
 
 ## Важно
 
-В этой среде сборки нет Android SDK / Gradle, поэтому APK здесь не собран. Проект подготовлен для сборки в Android Studio.
+На машинах без Android SDK и без локального Gradle автоматическую сборку APK в этой среде выполнить нельзя; используйте Android Studio на своём ПК.
 
 ## Пользовательское соглашение
 
