@@ -3,3 +3,4 @@ local
 string app_name
 style AppTheme.Dark
 style AppTheme.Light
+xml provider_paths

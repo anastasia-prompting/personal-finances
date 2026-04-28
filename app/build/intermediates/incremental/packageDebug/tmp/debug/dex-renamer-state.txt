@@ -1,10 +1,13 @@
-#Tue Apr 28 15:43:15 MSK 2026
+#Tue Apr 28 18:18:05 MSK 2026
 base.0=E\:\\NEIRO\\my_projects\\personal-finances\\personal-finances\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
 base.1=E\:\\NEIRO\\my_projects\\personal-finances\\personal-finances\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\7\\classes.dex
 base.2=E\:\\NEIRO\\my_projects\\personal-finances\\personal-finances\\app\\build\\intermediates\\global_synthetics_dex\\debug\\generateDebugGlobalSynthetics\\classes.dex
+base.3=E\:\\NEIRO\\my_projects\\personal-finances\\personal-finances\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
 path.0=0/classes.dex
 path.1=7/classes.dex
 path.2=classes.dex
+path.3=classes.dex
 renamed.0=classes.dex
 renamed.1=classes2.dex
 renamed.2=classes3.dex
+renamed.3=classes4.dex

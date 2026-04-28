@@ -3,24 +3,24 @@
 3    package="com.nastia.financialauditor.test" >
 4
 5    <uses-sdk
-5-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:5:5-74
+5-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:5:5-74
 6        android:minSdkVersion="23"
-6-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:5:15-41
+6-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:5:15-41
 7        android:targetSdkVersion="35" />
-7-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:5:42-71
+7-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:5:42-71
 8
 9    <instrumentation
-9-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:7:5-11:77
-10        android:name="android.test.InstrumentationTestRunner"
-10-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:7:22-75
+9-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:7:5-11:77
+10        android:name="androidx.test.runner.AndroidJUnitRunner"
+10-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:7:22-76
 11        android:functionalTest="false"
-11-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:10:22-52
+11-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:10:22-52
 12        android:handleProfiling="false"
-12-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:9:22-53
+12-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:9:22-53
 13        android:label="Tests for com.nastia.financialauditor"
-13-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:11:22-75
+13-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:11:22-75
 14        android:targetPackage="com.nastia.financialauditor" />
-14-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15864332431631258551.xml:8:22-73
+14-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\tmp\manifest\androidTest\debug\tempFile1ProcessTestManifest15320973727464048378.xml:8:22-73
 15
 16    <application
 16-->INJECTED

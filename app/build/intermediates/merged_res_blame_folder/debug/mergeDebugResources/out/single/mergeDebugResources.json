@@ -1,0 +1,6 @@
+[
+    {
+        "merged": "com.nastia.financialauditor.app-debug-10:/xml_provider_paths.xml.flat",
+        "source": "com.nastia.financialauditor.app-main-12:/xml/provider_paths.xml"
+    }
+]
