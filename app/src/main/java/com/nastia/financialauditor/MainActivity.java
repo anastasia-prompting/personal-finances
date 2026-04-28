@@ -4,10 +4,9 @@ import android.app.*;
 import android.os.*;
 import android.content.*;
 import android.graphics.Color;
-import android.net.Uri;
 import android.view.*;
-import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
+
 import java.io.*;
 import java.text.DecimalFormat;
 import java.util.*;
@@ -16,16 +15,21 @@ public class MainActivity extends Activity {
     private static final String PREFS = "auditor_prefs";
     private static final String KEY_AGREED = "user_agreed";
     private static final String KEY_DARK = "dark_theme";
+    private static final String KEY_SETUP_DONE = "initial_setup_done";
+
     private DataStore store;
     private LinearLayout content;
     private final DecimalFormat money = new DecimalFormat("#,##0.## ₽");
     private boolean dark;
 
-    private final String[] typeLabels = {"Доход", "Расход", "Перевод в фонд", "Расход из фонда", "Платёж по кредиту", "Увеличение долга"};
-    private final String[] typeCodes = {"income", "expense", "transfer_to_fund", "expense_from_fund", "credit_payment", "debt_increase"};
+    private final String[] typeLabels = {"Доход", "Расход", "Перевод в фонд", "Расход из фонда", "Платёж по кредиту", "Увеличение долга", "Перевод на маркетплейс"};
+    private final String[] typeCodes = {DataStore.OP_INCOME, DataStore.OP_EXPENSE, DataStore.OP_TRANSFER_TO_FUND, DataStore.OP_EXPENSE_FROM_FUND, DataStore.OP_CREDIT_PAYMENT, DataStore.OP_DEBT_INCREASE, DataStore.OP_MARKETPLACE_TRANSFER};
     private final String[] expenseCategories = {"ЖКХ, налоги, телефоны, интернет", "Дети", "Продукты, еда вне дома", "Бытовая химия, товары для дома", "Красота, здоровье", "Одежда, обувь, аксессуары", "Разное и форс-мажор", "Транспорт, авто", "Подарки и благотворительность", "Хочушки-удовольствия"};
     private final String[] incomeCategories = {"Зарплата", "Аренда", "Алименты", "Пособия", "Фриланс", "Продажа вещей", "Подарок", "Проценты и доход на остаток", "Кэшбэк / бонусы"};
-    private final String[] creditCategories = {"Платёж по кредиту", "Увеличение долга", "Страховка кредитора", "Покупка в кредит", "Комиссия / проценты"};
+    private final String[] creditCategories = {"Увеличение долга", "Страховка кредитора", "Покупка в кредит", "Комиссия / проценты"};
+    private final String[] cardTypes = {"Дебетовая", "Кредитная"};
+    private final String[] cardTypeCodes = {DataStore.TYPE_DEBIT, DataStore.TYPE_CREDIT};
+    private final String[] currencies = {"RUB", "USD", "EUR"};
 
     @Override protected void onCreate(Bundle b) {
         dark = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_DARK, false);
@@ -33,12 +37,16 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         store = new DataStore(this);
         buildUi();
-        if (!getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_AGREED, false)) showAgreement(false);
+        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (!prefs.getBoolean(KEY_AGREED, false)) showAgreement(false);
+        else if (!prefs.getBoolean(KEY_SETUP_DONE, false)) showInitialSetup();
     }
 
     private void buildUi() {
         ScrollView scroll = new ScrollView(this);
-        content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(26, 28, 26, 40);
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(26, 28, 26, 40);
         content.setBackgroundColor(dark ? Color.rgb(25,23,23) : Color.rgb(245,241,234));
         scroll.addView(content);
         setContentView(scroll);
@@ -46,7 +54,11 @@ public class MainActivity extends Activity {
     }
 
     private TextView tv(String text, int sp, int style) {
-        TextView v = new TextView(this); v.setText(text); v.setTextSize(sp); v.setTypeface(null, style); v.setTextColor(dark ? Color.rgb(245,241,234) : Color.rgb(45,42,42)); v.setPadding(0, 8, 0, 8); return v;
+        TextView v = new TextView(this);
+        v.setText(text); v.setTextSize(sp); v.setTypeface(null, style);
+        v.setTextColor(dark ? Color.rgb(245,241,234) : Color.rgb(45,42,42));
+        v.setPadding(0, 8, 0, 8);
+        return v;
     }
     private Button btn(String text) { Button b = new Button(this); b.setText(text); b.setAllCaps(false); return b; }
 
@@ -54,17 +66,23 @@ public class MainActivity extends Activity {
         content.removeAllViews();
         LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = tv("Личный финансовый аудитор", 24, 1); top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        Button theme = btn(dark ? "Светлая" : "Тёмная"); theme.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_DARK, !dark).apply(); recreate(); }); top.addView(theme);
-        content.addView(top);
+        Button theme = btn(dark ? "Светлая" : "Тёмная");
+        theme.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_DARK, !dark).apply(); recreate(); });
+        top.addView(theme); content.addView(top);
         content.addView(tv("Ясность без давления. Управление без жёсткости.", 14, 0));
 
         DataStore.Summary s = store.getSummary();
-        addCard("Текущее состояние", "Карты: " + money.format(s.accountBalance) + "\nНаличные: " + money.format(s.cashBalance) + "\nФонды: " + money.format(s.fundsTotal) + "\nДолг: " + money.format(s.debt));
+        addCard("Текущее состояние", "Карты: " + money.format(s.cardBalance)
+                + "\nНаличные: " + money.format(s.cashBalance)
+                + "\nМаркетплейс-кошельки: " + money.format(s.marketplaceBalance)
+                + "\nФонды: " + money.format(s.fundsTotal)
+                + "\nДолг: " + money.format(s.debt));
         addCard("Месяц", "Доходы: " + money.format(s.totalIncome) + "\nРасходы: " + money.format(s.totalExpense) + "\nЧисто: " + money.format(s.totalIncome - s.totalExpense));
         addRecommendation(s);
 
         Button add = btn("+ Добавить операцию"); add.setOnClickListener(v -> showOperationDialog()); content.addView(add);
         Button export = btn("Экспорт CSV"); export.setOnClickListener(v -> exportCsv()); content.addView(export);
+        Button setup = btn("Первичная настройка"); setup.setOnClickListener(v -> showInitialSetup()); content.addView(setup);
         Button agreement = btn("Пользовательское соглашение"); agreement.setOnClickListener(v -> showAgreement(true)); content.addView(agreement);
         content.addView(tv("Последние операции", 20, 1));
         for (DataStore.OperationView op : store.recentOperations()) addOperationRow(op);
@@ -73,86 +91,232 @@ public class MainActivity extends Activity {
     private void addCard(String title, String body) {
         TextView box = tv(title + "\n" + body, 16, 0);
         box.setBackgroundColor(dark ? Color.rgb(49,67,85) : Color.rgb(216,206,194));
-        box.setPadding(24, 20, 24, 20); LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0,12,0,12); content.addView(box, lp);
+        box.setPadding(24, 20, 24, 20);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0,12,0,12); content.addView(box, lp);
     }
 
     private void addRecommendation(DataStore.Summary s) {
         String text;
-        if (s.debt > 0 && s.totalIncome > 0) text = "Подсказка: долг виден в системе. Можно выбрать комфортный платёж выше минимального и двигаться без рывков.";
-        else if (s.totalIncome > 0 && s.fundsTotal == 0) text = "Подсказка: после дохода можно направить небольшую долю в фонды. Даже 5% уже создают опору.";
-        else text = "Подсказка: система работает мягко — она предупреждает и помогает видеть картину, но не запрещает решения.";
+        if (s.debt > 0 && s.totalIncome > 0) text = "Подсказка: долг виден отдельно от свободных денег. Можно выбрать комфортный платёж выше минимального и двигаться без рывков.";
+        else if (s.totalIncome > 0 && s.fundsTotal == 0) text = "Подсказка: проценты фондов пока служат ориентиром. Автораспределение доходов добавим отдельной итерацией.";
+        else text = "Подсказка: система не запрещает операции, а помогает видеть картину без двойного учёта.";
         addCard("Мягкая рекомендация", text);
     }
 
     private void addOperationRow(DataStore.OperationView op) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(18,16,18,16); row.setBackgroundColor(dark ? Color.rgb(45,42,42) : Color.WHITE);
-        TextView t = tv(labelForType(op.type) + " • " + money.format(op.amount), 16, 1); row.addView(t);
-        // Счёт и фонд — как раньше; кредит — отдельная сущность (долг/продукт), показываем меткой только если операция к нему привязана.
-        String details = op.date + " • " + safe(op.account) + " " + safe(op.fund);
-        if (op.creditName != null && !op.creditName.isEmpty()) {
-            details += " • Кредит: " + op.creditName;
-        }
-        details += " " + safe(op.category) + "\n" + safe(op.comment);
-        row.addView(tv(details, 13, 0));
+        row.addView(tv(labelForType(op.type) + " • " + money.format(op.amount), 16, 1));
+        List<String> details = new ArrayList<>(); details.add(op.date);
+        if (notEmpty(op.account)) details.add("Источник: " + op.account);
+        if (notEmpty(op.targetAccount)) details.add("Куда: " + op.targetAccount);
+        if (notEmpty(op.fund)) details.add("Фонд: " + op.fund);
+        if (notEmpty(op.creditName)) details.add("Кредит: " + op.creditName);
+        if (notEmpty(op.category)) details.add("Категория: " + op.category);
+        row.addView(tv(join(details, " • ") + (notEmpty(op.comment) ? "\n" + op.comment : ""), 13, 0));
         Button del = btn("Удалить"); del.setOnClickListener(v -> { store.deleteOperation(op.id); renderHome(); }); row.addView(del);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0,8,0,8); content.addView(row, lp);
     }
-    private String safe(String s){ return s == null ? "" : s; }
 
     private void showOperationDialog() {
         Dialog d = new Dialog(this); d.setTitle("Новая операция");
         ScrollView sv = new ScrollView(this); LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(26, 22, 26, 22); sv.addView(box);
-        Spinner type = spinner(typeLabels); EditText amount = input("Сумма"); amount.setInputType(8194);
-        Spinner account = spinnerItems(store.getAccounts(), true); Spinner fund = spinnerItems(store.getFunds(), true); Spinner credit = spinnerItems(store.getCredits(), true);
-        Spinner category = spinner(expenseCategories); EditText comment = input("Комментарий");
-        box.addView(label("Тип операции")); box.addView(type); box.addView(label("Сумма")); box.addView(amount);
-        box.addView(label("Счёт")); box.addView(account); box.addView(label("Фонд")); box.addView(fund); box.addView(label("Кредит")); box.addView(credit); box.addView(label("Категория")); box.addView(category); box.addView(label("Комментарий")); box.addView(comment);
+        Spinner type = spinner(typeLabels);
+        EditText amount = input("Сумма"); amount.setInputType(8194);
+        Spinner incomeMode = spinner(new String[]{"На карту/кошелёк", "В фонд"});
+        Spinner account = spinnerItems(store.getActiveExpenseSources(), true);
+        Spinner targetWallet = spinnerItems(store.getActiveMarketplaceWallets(), true);
+        Spinner fund = spinnerItems(store.getOperationFunds(), true);
+        Spinner credit = spinnerItems(store.getCredits(), true);
+        Spinner category = spinner(expenseCategories);
+        EditText comment = input("Комментарий");
+
+        TextView lType = label("Тип операции"), lAmount = label("Сумма"), lMode = label("Куда пришёл доход"), lAccount = label("Карта / наличные / кошелёк"), lTarget = label("Кошелёк маркетплейса"), lFund = label("Фонд"), lCredit = label("Кредит"), lCategory = label("Категория"), lComment = label("Комментарий");
+        box.addView(lType); box.addView(type); box.addView(lAmount); box.addView(amount);
+        box.addView(lMode); box.addView(incomeMode); box.addView(lAccount); box.addView(account); box.addView(lTarget); box.addView(targetWallet); box.addView(lFund); box.addView(fund); box.addView(lCredit); box.addView(credit); box.addView(lCategory); box.addView(category); box.addView(lComment); box.addView(comment);
         Button save = btn("Сохранить"); box.addView(save); Button saveMore = btn("Сохранить и добавить ещё"); box.addView(saveMore);
-        type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){ public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id){ updateCategory(category, typeCodes[pos]); } public void onNothingSelected(android.widget.AdapterView<?> p){} });
+
+        Runnable refresh = () -> configureOperationFields(typeCodes[type.getSelectedItemPosition()], incomeMode.getSelectedItemPosition(), incomeMode, account, targetWallet, fund, credit, category, lMode, lAccount, lTarget, lFund, lCredit, lCategory);
+        type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){ public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id){ refresh.run(); } public void onNothingSelected(android.widget.AdapterView<?> p){} });
+        incomeMode.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){ public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id){ refresh.run(); } public void onNothingSelected(android.widget.AdapterView<?> p){} });
+        refresh.run();
+
         View.OnClickListener saver = v -> {
-            double a; try { a = Double.parseDouble(amount.getText().toString().replace(',', '.')); if (a <= 0) throw new Exception(); } catch(Exception e){ toast("Введите положительную сумму"); return; }
+            double a = parseRequired(amount, "Введите положительную сумму"); if (a <= 0) return;
             String code = typeCodes[type.getSelectedItemPosition()];
-            long accId = selectedId(account), fundId = selectedId(fund), creditId = selectedId(credit);
-            if ((code.equals("expense") || code.equals("income") || code.equals("transfer_to_fund") || code.equals("credit_payment")) && accId <= 0) { toast("Выберите счёт"); return; }
-            if ((code.equals("transfer_to_fund") || code.equals("expense_from_fund")) && fundId <= 0) { toast("Выберите фонд"); return; }
-            if ((code.equals("credit_payment") || code.equals("debt_increase")) && creditId <= 0) { toast("Выберите кредит"); return; }
-            store.addOperation(code, a, accId, fundId, creditId, (String)category.getSelectedItem(), comment.getText().toString());
+            long accId = selectedId(account), targetId = selectedId(targetWallet), fundId = selectedId(fund), creditId = selectedId(credit);
+            String cat = category.getVisibility() == View.VISIBLE ? (String) category.getSelectedItem() : "";
+
+            if (DataStore.OP_INCOME.equals(code)) {
+                if (incomeMode.getSelectedItemPosition() == 0) { if (accId <= 0) { toast("Выберите, куда пришёл доход"); return; } fundId = 0; }
+                else { if (fundId <= 0) { toast("Выберите фонд для дохода"); return; } accId = 0; }
+                creditId = 0; targetId = 0;
+            } else if (DataStore.OP_EXPENSE.equals(code)) {
+                if (accId <= 0) { toast("Выберите источник расхода"); return; }
+                fundId = 0; creditId = 0; targetId = 0;
+            } else if (DataStore.OP_TRANSFER_TO_FUND.equals(code)) {
+                if (accId <= 0) { toast("Выберите источник перевода"); return; }
+                if (fundId <= 0) { toast("Выберите фонд"); return; }
+                creditId = 0; targetId = 0; cat = "";
+            } else if (DataStore.OP_EXPENSE_FROM_FUND.equals(code)) {
+                if (fundId <= 0) { toast("Выберите фонд"); return; }
+                accId = 0; creditId = 0; targetId = 0; cat = "";
+            } else if (DataStore.OP_CREDIT_PAYMENT.equals(code)) {
+                if (accId <= 0) { toast("Выберите источник платежа"); return; }
+                if (creditId <= 0) { toast("Выберите кредит"); return; }
+                fundId = 0; targetId = 0; cat = "";
+            } else if (DataStore.OP_DEBT_INCREASE.equals(code)) {
+                if (creditId <= 0) { toast("Выберите кредит"); return; }
+                accId = 0; fundId = 0; targetId = 0;
+            } else if (DataStore.OP_MARKETPLACE_TRANSFER.equals(code)) {
+                if (accId <= 0) { toast("Выберите карту-источник"); return; }
+                if (targetId <= 0) { toast("Выберите маркетплейс-кошелёк"); return; }
+                String accountType = store.accountType(accId);
+                // Пополнение маркетплейса с кредитки увеличивает долг, но не считается расходом месяца.
+                if (DataStore.TYPE_CREDIT.equals(accountType)) {
+                    creditId = store.creditIdForAccount(accId);
+                    if (creditId <= 0) { toast("Для кредитной карты не найден кредит"); return; }
+                } else creditId = 0;
+                fundId = 0; cat = "";
+            }
+
+            store.addOperation(code, a, accId, targetId, fundId, creditId, cat, comment.getText().toString());
             toast("Операция сохранена"); amount.setText(""); comment.setText(""); renderHome(); if (v == save) d.dismiss(); else amount.requestFocus();
         };
         save.setOnClickListener(saver); saveMore.setOnClickListener(saver);
         d.setContentView(sv); d.show();
     }
 
+    private void configureOperationFields(String code, int incomeModePos, Spinner incomeMode, Spinner account, Spinner targetWallet, Spinner fund, Spinner credit, Spinner category, TextView lMode, TextView lAccount, TextView lTarget, TextView lFund, TextView lCredit, TextView lCategory) {
+        setVisible(lMode, incomeMode, false); setVisible(lAccount, account, false); setVisible(lTarget, targetWallet, false); setVisible(lFund, fund, false); setVisible(lCredit, credit, false); setVisible(lCategory, category, false);
+        lCategory.setText("Категория");
+        if (DataStore.OP_INCOME.equals(code)) {
+            setVisible(lMode, incomeMode, true);
+            if (incomeModePos == 0) { setSpinnerItems(account, store.getActiveIncomeDestinations(), true); setVisible(lAccount, account, true); lAccount.setText("Куда пришёл доход"); }
+            else { setSpinnerItems(fund, store.getOperationFunds(), true); setVisible(lFund, fund, true); lFund.setText("Фонд-получатель"); }
+            setCategory(category, incomeCategories); setVisible(lCategory, category, true);
+        } else if (DataStore.OP_EXPENSE.equals(code)) {
+            setSpinnerItems(account, store.getActiveExpenseSources(), true); setVisible(lAccount, account, true); lAccount.setText("Источник расхода"); setCategory(category, expenseCategories); setVisible(lCategory, category, true);
+        } else if (DataStore.OP_TRANSFER_TO_FUND.equals(code)) {
+            setSpinnerItems(account, store.getActiveFundTransferSources(), true); setSpinnerItems(fund, store.getOperationFunds(), true); setVisible(lAccount, account, true); lAccount.setText("Откуда перевести"); setVisible(lFund, fund, true); lFund.setText("Куда: фонд");
+        } else if (DataStore.OP_EXPENSE_FROM_FUND.equals(code)) {
+            setSpinnerItems(fund, store.getOperationFunds(), true); setVisible(lFund, fund, true); lFund.setText("Фонд");
+        } else if (DataStore.OP_CREDIT_PAYMENT.equals(code)) {
+            setSpinnerItems(account, store.getActiveFundTransferSources(), true); setVisible(lAccount, account, true); lAccount.setText("Источник платежа"); setVisible(lCredit, credit, true);
+        } else if (DataStore.OP_DEBT_INCREASE.equals(code)) {
+            setVisible(lCredit, credit, true); setCategory(category, creditCategories); setVisible(lCategory, category, true); lCategory.setText("Причина роста долга");
+        } else if (DataStore.OP_MARKETPLACE_TRANSFER.equals(code)) {
+            setSpinnerItems(account, store.getActiveMarketplaceTransferSources(), true); setSpinnerItems(targetWallet, store.getActiveMarketplaceWallets(), true); setVisible(lAccount, account, true); lAccount.setText("Карта-источник"); setVisible(lTarget, targetWallet, true);
+        }
+    }
+
+    private void showInitialSetup() {
+        Dialog d = new Dialog(this); d.setTitle("Первичная настройка");
+        ScrollView sv = new ScrollView(this); LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(24, 20, 24, 24); sv.addView(box);
+        box.addView(tv("Настроим финансовую систему. Можно оставить предустановленные значения и вернуться к ним позже.", 15, 0));
+        box.addView(tv("Не обязательно включать все фонды сразу. Часто спокойнее выбрать 2–4 главных направления и быстрее увидеть результат.", 14, 0));
+
+        box.addView(tv("Карты", 20, 1));
+        List<AccountSetupRow> cardRows = new ArrayList<>();
+        for (int i=1;i<=5;i++) { AccountSetupRow r = new AccountSetupRow("Карта" + i, i==1, DataStore.TYPE_DEBIT, "RUB", false); cardRows.add(r); box.addView(r.view); }
+        box.addView(tv("Наличные", 20, 1));
+        AccountSetupRow cashRow = new AccountSetupRow("Наличные", true, DataStore.TYPE_CASH, "RUB", true); box.addView(cashRow.view);
+        box.addView(tv("Маркетплейс-кошельки", 20, 1));
+        AccountSetupRow ozon = new AccountSetupRow("Ozon-кошелёк", false, DataStore.TYPE_MARKETPLACE, "RUB", true); box.addView(ozon.view);
+        AccountSetupRow wb = new AccountSetupRow("WB-кошелёк", false, DataStore.TYPE_MARKETPLACE, "RUB", true); box.addView(wb.view);
+
+        box.addView(tv("Фонды", 20, 1));
+        List<FundSetupRow> fundRows = new ArrayList<>();
+        addFundRow(box, fundRows, "Продукты и Быт", true, 0, 41, true);
+        addFundRow(box, fundRows, "Съём и Маневренный фонд", true, 200000, 35, false);
+        addFundRow(box, fundRows, "Подушка Безопасности", true, 1250000, 5, false);
+        addFundRow(box, fundRows, "Фонд Финансовой цели года", true, 500000, 5, false);
+        addFundRow(box, fundRows, "Фонд Удовольствий", true, 0, 4, false);
+        addFundRow(box, fundRows, "Фонд Больших Покупок", true, 0, 4, false);
+        addFundRow(box, fundRows, "Фонд Собственного Жилья", true, 10000000, 3, false);
+        addFundRow(box, fundRows, "Фонд Инвестиций", true, 0, 3, false);
+        addFundRow(box, fundRows, "Фонд9", false, 0, 0, false);
+        addFundRow(box, fundRows, "Фонд10", false, 0, 0, false);
+
+        Button save = btn("Сохранить настройку"); box.addView(save);
+        save.setOnClickListener(v -> {
+            List<DataStore.AccountConfig> accounts = new ArrayList<>();
+            for (AccountSetupRow r : cardRows) { DataStore.AccountConfig c = r.toConfig(); if (c == null) return; accounts.add(c); }
+            DataStore.AccountConfig cash = cashRow.toConfig(); if (cash == null) return; accounts.add(cash);
+            DataStore.AccountConfig o = ozon.toConfig(); if (o == null) return; accounts.add(o);
+            DataStore.AccountConfig w = wb.toConfig(); if (w == null) return; accounts.add(w);
+            List<DataStore.FundConfig> funds = new ArrayList<>();
+            for (FundSetupRow r : fundRows) { DataStore.FundConfig fc = r.toConfig(); if (fc == null) return; funds.add(fc); }
+            store.saveInitialSetup(accounts, funds);
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_SETUP_DONE, true).apply();
+            toast("Настройка сохранена"); d.dismiss(); renderHome();
+        });
+        d.setContentView(sv); d.show();
+    }
+
+    private void addFundRow(LinearLayout box, List<FundSetupRow> list, String name, boolean active, double target, double percent, boolean operational) { FundSetupRow r = new FundSetupRow(name, active, target, percent, operational); list.add(r); box.addView(r.view); }
+
+    private class AccountSetupRow {
+        LinearLayout view = new LinearLayout(MainActivity.this); CheckBox active = new CheckBox(MainActivity.this); EditText name = input("Название"); Spinner type = spinner(cardTypes); Spinner currency = spinner(currencies); EditText balance = input("Баланс"); EditText debt = input("Текущая задолженность"); EditText limit = input("Кредитный лимит"); boolean fixedType;
+        AccountSetupRow(String defaultName, boolean isActive, String typeCode, String currencyCode, boolean fixedType) {
+            this.fixedType = fixedType; view.setOrientation(LinearLayout.VERTICAL); view.setPadding(0, 8, 0, 14);
+            active.setText("Активно"); active.setChecked(isActive); name.setText(defaultName); balance.setInputType(8194); debt.setInputType(8194); limit.setInputType(8194);
+            if (DataStore.TYPE_CREDIT.equals(typeCode)) type.setSelection(1); else type.setSelection(0); if ("USD".equals(currencyCode)) currency.setSelection(1); else if ("EUR".equals(currencyCode)) currency.setSelection(2);
+            view.addView(active); view.addView(name);
+            if (!fixedType) { view.addView(label("Тип карты")); view.addView(type); }
+            view.addView(label("Валюта")); view.addView(currency); view.addView(balance); view.addView(debt); view.addView(limit);
+            Runnable refresh = () -> { boolean credit = !fixedType && type.getSelectedItemPosition()==1; balance.setVisibility(credit ? View.GONE : View.VISIBLE); debt.setVisibility(credit ? View.VISIBLE : View.GONE); limit.setVisibility(credit ? View.VISIBLE : View.GONE); };
+            type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){ public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id){ refresh.run(); } public void onNothingSelected(android.widget.AdapterView<?> p){} }); refresh.run();
+        }
+        DataStore.AccountConfig toConfig() {
+            DataStore.AccountConfig c = new DataStore.AccountConfig(); c.name = name.getText().toString().trim().isEmpty() ? "Без названия" : name.getText().toString().trim(); c.active = active.isChecked(); c.currency = (String)currency.getSelectedItem(); c.type = fixedType ? (c.name.startsWith("Ozon") || c.name.startsWith("WB") ? DataStore.TYPE_MARKETPLACE : DataStore.TYPE_CASH) : cardTypeCodes[type.getSelectedItemPosition()];
+            if (c.active && DataStore.TYPE_CREDIT.equals(c.type)) { c.currentDebt = parseRequired(debt, "Укажите задолженность для " + c.name); if (c.currentDebt < 0) return null; c.creditLimit = parseRequired(limit, "Укажите лимит для " + c.name); if (c.creditLimit < 0) return null; c.balance = 0; }
+            else { if (c.active && (DataStore.TYPE_DEBIT.equals(c.type) || DataStore.TYPE_CASH.equals(c.type))) { c.balance = parseRequired(balance, "Укажите баланс для " + c.name); if (c.balance < 0) return null; } else c.balance = parseOptional(balance); c.currentDebt = 0; c.creditLimit = 0; }
+            return c;
+        }
+    }
+
+    private class FundSetupRow {
+        LinearLayout view = new LinearLayout(MainActivity.this); CheckBox active = new CheckBox(MainActivity.this); EditText name = input("Название фонда"); EditText target = input("Целевая сумма"); EditText percent = input("% распределения"); boolean operational;
+        FundSetupRow(String defaultName, boolean isActive, double targetAmount, double pct, boolean operational) {
+            this.operational = operational; view.setOrientation(LinearLayout.VERTICAL); view.setPadding(0, 8, 0, 14);
+            active.setText("Активен"); active.setChecked(isActive); name.setText(defaultName); target.setInputType(8194); percent.setInputType(8194); if (targetAmount > 0) target.setText(String.valueOf((long)targetAmount)); percent.setText(String.valueOf((long)pct)); view.addView(active); view.addView(name); view.addView(target); view.addView(percent);
+        }
+        DataStore.FundConfig toConfig(){ DataStore.FundConfig f = new DataStore.FundConfig(); f.name = name.getText().toString().trim().isEmpty()?"Фонд":name.getText().toString().trim(); f.active = active.isChecked(); f.targetAmount = parseOptional(target); f.initialBalance = 0; f.plannedPercent = parseOptional(percent); f.operational = operational; f.type = operational ? "operational" : "goal"; return f; }
+    }
+
     private TextView label(String s){ return tv(s, 13, 1); }
     private EditText input(String hint){ EditText e = new EditText(this); e.setHint(hint); e.setSingleLine(false); e.setTextColor(dark ? Color.WHITE : Color.BLACK); e.setHintTextColor(dark ? Color.LTGRAY : Color.DKGRAY); return e; }
     private Spinner spinner(String[] values){ Spinner sp = new Spinner(this); sp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, values)); return sp; }
-    private Spinner spinnerItems(List<DataStore.Item> items, boolean empty) { List<DataStore.Item> list = new ArrayList<>(); if (empty) list.add(new DataStore.Item(0, "—")); list.addAll(items); Spinner sp = new Spinner(this); sp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, list)); return sp; }
+    private Spinner spinnerItems(List<DataStore.Item> items, boolean empty) { Spinner sp = new Spinner(this); setSpinnerItems(sp, items, empty); return sp; }
+    private void setSpinnerItems(Spinner sp, List<DataStore.Item> items, boolean empty) { sp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, items)); }
     private long selectedId(Spinner sp){ Object o = sp.getSelectedItem(); return o instanceof DataStore.Item ? ((DataStore.Item)o).id : 0; }
-    private void updateCategory(Spinner sp, String type){ String[] arr = type.equals("income") ? incomeCategories : (type.equals("credit_payment") || type.equals("debt_increase") ? creditCategories : expenseCategories); sp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, arr)); }
+    private void setCategory(Spinner sp, String[] arr){ sp.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, arr)); }
     private String labelForType(String code){ for (int i=0;i<typeCodes.length;i++) if (typeCodes[i].equals(code)) return typeLabels[i]; return code; }
+    private void setVisible(View label, View field, boolean visible){ label.setVisibility(visible ? View.VISIBLE : View.GONE); field.setVisibility(visible ? View.VISIBLE : View.GONE); }
+    private boolean notEmpty(String s){ return s != null && !s.trim().isEmpty(); }
+    private String join(List<String> parts, String sep){ StringBuilder b = new StringBuilder(); for (String p: parts){ if (b.length()>0) b.append(sep); b.append(p); } return b.toString(); }
     private void toast(String s){ Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
+    private double parseOptional(EditText e){ try { String s=e.getText().toString().trim(); if (s.isEmpty()) return 0; return Double.parseDouble(s.replace(',', '.')); } catch(Exception ex){ return 0; } }
+    private double parseRequired(EditText e, String error){ try { double v = Double.parseDouble(e.getText().toString().trim().replace(',', '.')); if (v < 0) throw new Exception(); return v; } catch(Exception ex){ toast(error); return -1; } }
 
     private void showAgreement(boolean informational) {
         AlertDialog.Builder b = new AlertDialog.Builder(this);
         b.setTitle("Пользовательское соглашение");
         b.setMessage("Приложение «Личный финансовый аудитор» предназначено для личного учёта и ориентировочного планирования финансов. Оно не является банковской, инвестиционной, налоговой или юридической консультацией. Все данные хранятся локально на устройстве. Пользователь самостоятельно отвечает за корректность вводимых данных, резервные копии и финансовые решения. Рекомендации приложения носят информационный и поддерживающий характер, не запрещают операции и не гарантируют финансовый результат. Продолжая пользоваться приложением, вы соглашаетесь с этими условиями.");
-        if (!informational) b.setPositiveButton("Принимаю", (dialog, which) -> getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_AGREED, true).apply());
+        if (!informational) b.setPositiveButton("Принимаю", (dialog, which) -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_AGREED, true).apply(); showInitialSetup(); });
         else b.setPositiveButton("Понятно", null);
         b.setCancelable(informational); b.show();
     }
 
     private void exportCsv() {
-        // Сводка на экране не меняем: getSummary() и фокус итерации — полный снимок для файла, а не «хвост» из 20 строк журнала.
         try {
-            File f = new File(getExternalFilesDir(null), "finance-auditor-operations.csv");
-            FileWriter w = new FileWriter(f);
-            w.write("date,type,amount,account,fund,credit,category,comment\n");
+            File f = new File(getExternalFilesDir(null), "finance-auditor-operations.csv"); FileWriter w = new FileWriter(f);
+            w.write("date,type,amount,source,target_wallet,fund,credit,category,comment\n");
             for (DataStore.OperationView op : store.allOperationsForExport()) {
-                String credit = op.creditName == null ? "" : op.creditName;
-                w.write(op.date + "," + op.type + "," + op.amount + ",\"" + op.account + "\",\"" + op.fund + "\",\"" + credit + "\",\"" + op.category + "\",\"" + op.comment + "\"\n");
+                w.write(csv(op.date) + "," + csv(op.type) + "," + op.amount + "," + csv(op.account) + "," + csv(op.targetAccount) + "," + csv(op.fund) + "," + csv(op.creditName) + "," + csv(op.category) + "," + csv(op.comment) + "\n");
             }
-            w.close();
-            toast("CSV сохранён: " + f.getAbsolutePath());
+            w.close(); toast("CSV сохранён: " + f.getAbsolutePath());
         } catch (Exception e) { toast("Не удалось экспортировать CSV: " + e.getMessage()); }
     }
+    private String csv(String s){ String v = s == null ? "" : s.replace("\r", " ").replace("\n", " ").replace("\"", "\"\""); return "\"" + v + "\""; }
 }
