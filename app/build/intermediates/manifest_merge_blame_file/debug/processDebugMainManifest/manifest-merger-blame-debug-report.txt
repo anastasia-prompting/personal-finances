@@ -5,8 +5,11 @@
 5    android:versionName="1.0" >
 6
 7    <uses-sdk
+7-->INJECTED
 8        android:minSdkVersion="23"
+8-->INJECTED
 9        android:targetSdkVersion="35" />
+9-->INJECTED
 10
 11    <application
 11-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:5-9:19
@@ -14,6 +17,7 @@
 12-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:18-44
 13        android:debuggable="true"
 14        android:extractNativeLibs="false"
+14-->INJECTED
 15        android:label="Финансовый аудитор"
 15-->E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:45-79
 16        android:resizeableActivity="true"

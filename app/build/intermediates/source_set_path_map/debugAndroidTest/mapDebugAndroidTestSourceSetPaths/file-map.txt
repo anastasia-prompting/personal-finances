@@ -1,5 +1,0 @@
-com.nastia.financialauditor.test.app-androidTest-0 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\generated\res\resValues\androidTest\debug
-com.nastia.financialauditor.test.app-updated_navigation_xml-1 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\generated\updated_navigation_xml\debugAndroidTest
-com.nastia.financialauditor.test.app-mergeDebugAndroidTestResources-2 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\merged.dir
-com.nastia.financialauditor.test.app-mergeDebugAndroidTestResources-3 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\incremental\debugAndroidTest\mergeDebugAndroidTestResources\stripped.dir
-com.nastia.financialauditor.test.app-debugAndroidTest-4 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\merged_res\debugAndroidTest\mergeDebugAndroidTestResources

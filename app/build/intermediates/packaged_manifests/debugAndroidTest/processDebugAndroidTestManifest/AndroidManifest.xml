@@ -15,8 +15,6 @@
 
     <application
         android:debuggable="true"
-        android:extractNativeLibs="false" >
-        <uses-library android:name="android.test.runner" />
-    </application>
+        android:extractNativeLibs="false" />
 
 </manifest>
