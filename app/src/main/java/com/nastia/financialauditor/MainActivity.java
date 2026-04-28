@@ -23,8 +23,18 @@ public class MainActivity extends Activity {
 
     private DataStore store;
     private LinearLayout content;
+    private LinearLayout sectionBody;
+    private Spinner sectionSpinner;
+    private int currentSection;
     private final DecimalFormat money = new DecimalFormat("#,##0.## ₽");
     private boolean dark;
+
+    private static final int SECTION_SUMMARY = 0;
+    private static final int SECTION_CARDS = 1;
+    private static final int SECTION_FUNDS = 2;
+    private static final int SECTION_CREDITS = 3;
+    private static final int SECTION_JOURNAL = 4;
+    private static final int SECTION_SETTINGS = 5;
 
     private final String[] typeLabels = {"Доход", "Расход", "Перевод в фонд", "Расход из фонда", "Платёж по кредиту", "Увеличение долга", "Перевод на маркетплейс"};
     private final String[] typeCodes = {DataStore.OP_INCOME, DataStore.OP_EXPENSE, DataStore.OP_TRANSFER_TO_FUND, DataStore.OP_EXPENSE_FROM_FUND, DataStore.OP_CREDIT_PAYMENT, DataStore.OP_DEBT_INCREASE, DataStore.OP_MARKETPLACE_TRANSFER};
@@ -59,7 +69,65 @@ public class MainActivity extends Activity {
         content.setBackgroundColor(dark ? Color.rgb(25,23,23) : Color.rgb(245,241,234));
         scroll.addView(content);
         setContentView(scroll);
-        renderHome();
+        buildSectionChrome();
+        refreshSectionUi();
+    }
+
+    private void buildSectionChrome() {
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        TextView title = tv("Личный финансовый аудитор", 22, 1);
+        top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+        content.addView(top);
+
+        final String[] sectionTitles = {"Общая сводка", "Карты и кошельки", "Фонды", "Кредиты", "Журнал операций", "Настройки"};
+        sectionSpinner = new Spinner(this);
+        sectionSpinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, sectionTitles));
+        sectionSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                if (currentSection == position) return;
+                currentSection = position;
+                refreshSectionUi();
+            }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+        content.addView(sectionSpinner, new LinearLayout.LayoutParams(-1, -2));
+
+        sectionBody = new LinearLayout(this);
+        sectionBody.setOrientation(LinearLayout.VERTICAL);
+        content.addView(sectionBody);
+
+        currentSection = SECTION_SUMMARY;
+        sectionSpinner.setSelection(SECTION_SUMMARY);
+    }
+
+    private void refreshSectionUi() {
+        if (sectionBody == null) return;
+        sectionBody.removeAllViews();
+        switch (currentSection) {
+            case SECTION_SUMMARY:
+                renderSummarySection();
+                break;
+            case SECTION_CARDS:
+                renderCardsSection();
+                break;
+            case SECTION_FUNDS:
+                renderFundsSection();
+                break;
+            case SECTION_CREDITS:
+                renderCreditsSection();
+                break;
+            case SECTION_JOURNAL:
+                renderJournalSection();
+                break;
+            case SECTION_SETTINGS:
+                renderSettingsSection();
+                break;
+            default:
+                renderSummarySection();
+                break;
+        }
     }
 
     private TextView tv(String text, int sp, int style) {
@@ -71,48 +139,117 @@ public class MainActivity extends Activity {
     }
     private Button btn(String text) { Button b = new Button(this); b.setText(text); b.setAllCaps(false); return b; }
 
-    private void renderHome() {
-        content.removeAllViews();
-        LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
-        TextView title = tv("Личный финансовый аудитор", 24, 1); top.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-        Button theme = btn(dark ? "Светлая" : "Тёмная");
-        theme.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_DARK, !dark).apply(); recreate(); });
-        top.addView(theme); content.addView(top);
-        content.addView(tv("Ясность без давления. Управление без жёсткости.", 14, 0));
+    private void addCardTo(LinearLayout target, String title, String body) {
+        TextView box = tv(title + "\n" + body, 16, 0);
+        box.setBackgroundColor(dark ? Color.rgb(49,67,85) : Color.rgb(216,206,194));
+        box.setPadding(24, 20, 24, 20);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0,12,0,12); target.addView(box, lp);
+    }
 
+    private void renderSummarySection() {
+        sectionBody.addView(tv("Ясность без давления. Управление без жёсткости.", 14, 0));
         DataStore.Summary s = store.getSummary();
-        addCard("Текущее состояние", "Карты: " + money.format(s.cardBalance)
+        addCardTo(sectionBody, "Текущее состояние", "Карты: " + money.format(s.cardBalance)
                 + "\nНаличные: " + money.format(s.cashBalance)
                 + "\nМаркетплейс-кошельки: " + money.format(s.marketplaceBalance)
                 + "\nФонды: " + money.format(s.fundsTotal)
                 + "\nДолг: " + money.format(s.debt));
-        addCard("Месяц", "Доходы: " + money.format(s.totalIncome) + "\nРасходы: " + money.format(s.totalExpense) + "\nЧисто: " + money.format(s.totalIncome - s.totalExpense));
-        addRecommendation(s);
+        addCardTo(sectionBody, "Месяц", "Доходы: " + money.format(s.totalIncome) + "\nРасходы: " + money.format(s.totalExpense) + "\nЧисто: " + money.format(s.totalIncome - s.totalExpense));
+        addRecommendationTo(sectionBody, s);
 
-        Button add = btn("+ Добавить операцию"); add.setOnClickListener(v -> showOperationDialog()); content.addView(add);
-        Button export = btn("Отправить отчёт"); export.setOnClickListener(v -> shareCsvReport()); content.addView(export);
-        Button setup = btn("Настройки финансовой системы"); setup.setOnClickListener(v -> showInitialSetup()); content.addView(setup);
-        Button agreement = btn("Пользовательское соглашение"); agreement.setOnClickListener(v -> showAgreement(true)); content.addView(agreement);
-        content.addView(tv("Последние операции", 20, 1));
-        for (DataStore.OperationView op : store.recentOperations()) addOperationRow(op);
+        Button add = btn("+ Добавить операцию"); add.setOnClickListener(v -> showOperationDialog()); sectionBody.addView(add);
+        sectionBody.addView(tv("Последние операции", 20, 1));
+        List<DataStore.OperationView> recent = store.recentOperations();
+        int n = Math.min(5, recent.size());
+        for (int i = 0; i < n; i++) addOperationRow(recent.get(i), sectionBody);
     }
 
-    private void addCard(String title, String body) {
-        TextView box = tv(title + "\n" + body, 16, 0);
-        box.setBackgroundColor(dark ? Color.rgb(49,67,85) : Color.rgb(216,206,194));
-        box.setPadding(24, 20, 24, 20);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0,12,0,12); content.addView(box, lp);
+    private void renderCardsSection() {
+        sectionBody.addView(tv("Карты, наличные и маркетплейс-кошельки с учётом операций.", 14, 0));
+        List<DataStore.AccountConfig> accounts = store.getAccountsForSetup();
+        boolean any = false;
+        for (DataStore.AccountConfig a : accounts) {
+            if (!a.active) continue;
+            if (!DataStore.TYPE_DEBIT.equals(a.type) && !DataStore.TYPE_CREDIT.equals(a.type)
+                    && !DataStore.TYPE_CASH.equals(a.type) && !DataStore.TYPE_MARKETPLACE.equals(a.type)) continue;
+            any = true;
+            double bal = store.currentAccountBalance(a.id);
+            String line = accountTypeTitle(a.type) + " • " + (DataStore.TYPE_CREDIT.equals(a.type) ? "доступно около " : "") + money.format(bal);
+            if (DataStore.TYPE_CREDIT.equals(a.type)) {
+                line += "\nЛимит: " + money.format(a.creditLimit) + ", долг в учёте: " + money.format(store.currentCreditDebtForAccount(a.id));
+            }
+            addCardTo(sectionBody, a.name != null ? a.name : "Счёт", line);
+        }
+        if (!any) sectionBody.addView(tv("Нет активных карт и кошельков. Добавьте их в финансовой настройке.", 15, 0));
     }
 
-    private void addRecommendation(DataStore.Summary s) {
+    private void renderFundsSection() {
+        sectionBody.addView(tv("Накопительные фонды: баланс с учётом операций и цели из настройки.", 14, 0));
+        List<DataStore.FundConfig> funds = store.getFundsForSetup();
+        boolean any = false;
+        for (DataStore.FundConfig f : funds) {
+            if (!f.active) continue;
+            any = true;
+            double bal = store.currentFundBalance(f.id);
+            String body = "Баланс: " + money.format(bal);
+            if (f.targetAmount > 0) body += "\nЦель: " + money.format(f.targetAmount);
+            if (f.plannedPercent > 0) body += "\nОриентир распределения: " + (long) f.plannedPercent + "%";
+            if (f.operational) body += "\nОперационный фонд";
+            addCardTo(sectionBody, f.name != null ? f.name : "Фонд", body);
+        }
+        if (!any) sectionBody.addView(tv("Нет активных фондов. Включите их в финансовой настройке.", 15, 0));
+    }
+
+    private void renderCreditsSection() {
+        sectionBody.addView(tv("Кредиты: сумма долга из настроек и операций.", 14, 0));
+        List<DataStore.Item> credits = store.getCredits();
+        boolean any = false;
+        for (DataStore.Item c : credits) {
+            if (c.id <= 0) continue;
+            any = true;
+            addCardTo(sectionBody, c.name, "Долг: " + money.format(c.balance));
+        }
+        if (!any) sectionBody.addView(tv("Кредиты не заведены.", 15, 0));
+    }
+
+    private void renderJournalSection() {
+        Button add = btn("+ Добавить операцию"); add.setOnClickListener(v -> showOperationDialog()); sectionBody.addView(add);
+        sectionBody.addView(tv("Все операции", 20, 1));
+        List<DataStore.OperationView> ops = new ArrayList<>(store.allOperationsForExport());
+        Collections.reverse(ops);
+        if (ops.isEmpty()) {
+            sectionBody.addView(tv("Операций пока нет.", 15, 0));
+            return;
+        }
+        for (DataStore.OperationView op : ops) addOperationRow(op, sectionBody);
+    }
+
+    private void renderSettingsSection() {
+        Button setup = btn("Финансовая настройка"); setup.setOnClickListener(v -> showInitialSetup()); sectionBody.addView(setup);
+        Button theme = btn(dark ? "Тема: тёмная (переключить на светлую)" : "Тема: светлая (переключить на тёмную)");
+        theme.setOnClickListener(v -> { getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_DARK, !dark).apply(); recreate(); });
+        sectionBody.addView(theme);
+        Button agreement = btn("Пользовательское соглашение"); agreement.setOnClickListener(v -> showAgreement(true)); sectionBody.addView(agreement);
+        Button export = btn("Отправить отчёт"); export.setOnClickListener(v -> shareCsvReport()); sectionBody.addView(export);
+    }
+
+    private String accountTypeTitle(String type) {
+        if (DataStore.TYPE_DEBIT.equals(type)) return "Дебетовая карта";
+        if (DataStore.TYPE_CREDIT.equals(type)) return "Кредитная карта";
+        if (DataStore.TYPE_CASH.equals(type)) return "Наличные";
+        if (DataStore.TYPE_MARKETPLACE.equals(type)) return "Маркетплейс-кошелёк";
+        return type;
+    }
+
+    private void addRecommendationTo(LinearLayout target, DataStore.Summary s) {
         String text;
         if (s.debt > 0 && s.totalIncome > 0) text = "Подсказка: долг виден отдельно от свободных денег. Можно выбрать комфортный платёж выше минимального и двигаться без рывков.";
         else if (s.totalIncome > 0 && s.fundsTotal == 0) text = "Подсказка: проценты фондов пока служат ориентиром. Автораспределение доходов добавим отдельной итерацией.";
         else text = "Подсказка: система не запрещает операции, а помогает видеть картину без двойного учёта.";
-        addCard("Мягкая рекомендация", text);
+        addCardTo(target, "Мягкая рекомендация", text);
     }
 
-    private void addOperationRow(DataStore.OperationView op) {
+    private void addOperationRow(DataStore.OperationView op, LinearLayout target) {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(18,16,18,16); row.setBackgroundColor(dark ? Color.rgb(45,42,42) : Color.WHITE);
         row.addView(tv(labelForType(op.type) + " • " + money.format(op.amount), 16, 1));
         List<String> details = new ArrayList<>(); details.add(op.date);
@@ -122,8 +259,8 @@ public class MainActivity extends Activity {
         if (notEmpty(op.creditName)) details.add("Кредит: " + op.creditName);
         if (notEmpty(op.category)) details.add("Категория: " + op.category);
         row.addView(tv(join(details, " • ") + (notEmpty(op.comment) ? "\n" + op.comment : ""), 13, 0));
-        Button del = btn("Удалить"); del.setOnClickListener(v -> { store.deleteOperation(op.id); renderHome(); }); row.addView(del);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0,8,0,8); content.addView(row, lp);
+        Button del = btn("Удалить"); del.setOnClickListener(v -> { store.deleteOperation(op.id); refreshSectionUi(); }); row.addView(del);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0,8,0,8); target.addView(row, lp);
     }
 
     private void showOperationDialog() {
@@ -192,7 +329,7 @@ public class MainActivity extends Activity {
             final String finalCat = cat;
             Runnable commit = () -> {
                 store.addOperation(code, a, finalAccId, finalTargetId, finalFundId, finalCreditId, finalCat, comment.getText().toString());
-                toast("Операция сохранена"); amount.setText(""); comment.setText(""); renderHome(); if (v == save) d.dismiss(); else amount.requestFocus();
+                toast("Операция сохранена"); amount.setText(""); comment.setText(""); refreshSectionUi(); if (v == save) d.dismiss(); else amount.requestFocus();
             };
             String warning = balanceWarning(code, a, finalAccId, finalFundId);
             if (warning != null) confirmOverBalance(warning, commit); else commit.run();
@@ -259,7 +396,7 @@ public class MainActivity extends Activity {
         Dialog d = new Dialog(this);
         ScrollView sv = new ScrollView(this); LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(24, 20, 24, 24); sv.addView(box);
         LinearLayout header = new LinearLayout(this); header.setOrientation(LinearLayout.HORIZONTAL); header.setGravity(Gravity.CENTER_VERTICAL);
-        header.addView(tv(editMode ? "Настройки финансовой системы" : "Первичная настройка", 20, 1), new LinearLayout.LayoutParams(0, -2, 1));
+        header.addView(tv(editMode ? "Настройки финансовой системы" : "Финансовая настройка", 20, 1), new LinearLayout.LayoutParams(0, -2, 1));
         TextView close = tv("×", 28, 1); close.setGravity(Gravity.CENTER); close.setPadding(20, 0, 6, 0); close.setOnClickListener(v -> closeSetupDialog(d, editMode));
         header.addView(close, new LinearLayout.LayoutParams(-2, -2));
         box.addView(header);
@@ -326,7 +463,7 @@ public class MainActivity extends Activity {
                     .putBoolean(KEY_SETUP_DONE, true)
                     .putInt(KEY_SETUP_SCHEMA_VERSION, DataStore.DB_VERSION)
                     .apply();
-            toast(editMode ? "Изменения сохранены" : "Настройка сохранена"); d.dismiss(); renderHome();
+            toast(editMode ? "Изменения сохранены" : "Настройка сохранена"); d.dismiss(); refreshSectionUi();
         });
         d.setContentView(sv); d.show();
     }
