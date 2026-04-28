@@ -89,7 +89,7 @@ public class MainActivity extends Activity {
 
         Button add = btn("+ Добавить операцию"); add.setOnClickListener(v -> showOperationDialog()); content.addView(add);
         Button export = btn("Экспорт CSV"); export.setOnClickListener(v -> exportCsv()); content.addView(export);
-        Button setup = btn("Первичная настройка"); setup.setOnClickListener(v -> showInitialSetup()); content.addView(setup);
+        Button setup = btn("Настройки финансовой системы"); setup.setOnClickListener(v -> showInitialSetup()); content.addView(setup);
         Button agreement = btn("Пользовательское соглашение"); agreement.setOnClickListener(v -> showAgreement(true)); content.addView(agreement);
         content.addView(tv("Последние операции", 20, 1));
         for (DataStore.OperationView op : store.recentOperations()) addOperationRow(op);
@@ -217,34 +217,59 @@ public class MainActivity extends Activity {
     }
 
     private void showInitialSetup() {
-        Dialog d = new Dialog(this); d.setTitle("Первичная настройка");
+        boolean editMode = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SETUP_DONE, false);
+        Dialog d = new Dialog(this); d.setTitle(editMode ? "Настройки финансовой системы" : "Первичная настройка");
         ScrollView sv = new ScrollView(this); LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(24, 20, 24, 24); sv.addView(box);
-        box.addView(tv("Настроим финансовую систему. Можно оставить предустановленные значения и вернуться к ним позже.", 15, 0));
+        box.addView(tv(editMode
+                ? "Можно поправить карты, кошельки, наличные и фонды. Уже внесённые операции не удаляются. Балансы в настройке — базовые значения, операции учитываются отдельно."
+                : "Настроим финансовую систему. Можно оставить предустановленные значения и вернуться к ним позже.", 15, 0));
         box.addView(tv("Не обязательно включать все фонды сразу. Часто спокойнее выбрать 2–4 главных направления и быстрее увидеть результат.", 14, 0));
+
+        List<DataStore.AccountConfig> existingAccounts = store.getAccountsForSetup();
+        List<DataStore.AccountConfig> cardConfigs = new ArrayList<>();
+        DataStore.AccountConfig cashConfig = null, ozonConfig = null, wbConfig = null;
+        for (DataStore.AccountConfig c : existingAccounts) {
+            if (DataStore.TYPE_CASH.equals(c.type) && cashConfig == null) cashConfig = c;
+            else if (DataStore.TYPE_MARKETPLACE.equals(c.type)) {
+                String n = c.name == null ? "" : c.name.toLowerCase(Locale.ROOT);
+                if (n.contains("ozon") || n.contains("озон")) ozonConfig = c;
+                else if (n.contains("wb") || n.contains("wildberries") || n.contains("вайлд")) wbConfig = c;
+            } else if (DataStore.TYPE_DEBIT.equals(c.type) || DataStore.TYPE_CREDIT.equals(c.type)) cardConfigs.add(c);
+        }
+        while (cardConfigs.size() < 5) cardConfigs.add(defaultAccount("Карта" + (cardConfigs.size()+1), cardConfigs.isEmpty(), DataStore.TYPE_DEBIT, "RUB"));
+        if (cashConfig == null) cashConfig = defaultAccount("Наличные", true, DataStore.TYPE_CASH, "RUB");
+        if (ozonConfig == null) ozonConfig = defaultAccount("Ozon-кошелёк", false, DataStore.TYPE_MARKETPLACE, "RUB");
+        if (wbConfig == null) wbConfig = defaultAccount("WB-кошелёк", false, DataStore.TYPE_MARKETPLACE, "RUB");
 
         box.addView(tv("Карты", 20, 1));
         List<AccountSetupRow> cardRows = new ArrayList<>();
-        for (int i=1;i<=5;i++) { AccountSetupRow r = new AccountSetupRow("Карта" + i, i==1, DataStore.TYPE_DEBIT, "RUB", false); cardRows.add(r); box.addView(r.view); }
+        for (int i=0; i<5; i++) { AccountSetupRow r = new AccountSetupRow(cardConfigs.get(i), false); cardRows.add(r); box.addView(r.view); }
         box.addView(tv("Наличные", 20, 1));
-        AccountSetupRow cashRow = new AccountSetupRow("Наличные", true, DataStore.TYPE_CASH, "RUB", true); box.addView(cashRow.view);
+        AccountSetupRow cashRow = new AccountSetupRow(cashConfig, true); box.addView(cashRow.view);
         box.addView(tv("Маркетплейс-кошельки", 20, 1));
-        AccountSetupRow ozon = new AccountSetupRow("Ozon-кошелёк", false, DataStore.TYPE_MARKETPLACE, "RUB", true); box.addView(ozon.view);
-        AccountSetupRow wb = new AccountSetupRow("WB-кошелёк", false, DataStore.TYPE_MARKETPLACE, "RUB", true); box.addView(wb.view);
+        box.addView(tv("Кошельки Ozon/WB — это платёжные контейнеры, а не фонды. Баланс можно указать сейчас или оставить пустым.", 14, 0));
+        AccountSetupRow ozon = new AccountSetupRow(ozonConfig, true); box.addView(ozon.view);
+        AccountSetupRow wb = new AccountSetupRow(wbConfig, true); box.addView(wb.view);
 
         box.addView(tv("Фонды", 20, 1));
         List<FundSetupRow> fundRows = new ArrayList<>();
-        addFundRow(box, fundRows, "Продукты и Быт", true, 0, 41, true);
-        addFundRow(box, fundRows, "Съём и Маневренный фонд", true, 200000, 35, false);
-        addFundRow(box, fundRows, "Подушка Безопасности", true, 1250000, 5, false);
-        addFundRow(box, fundRows, "Фонд Финансовой цели года", true, 500000, 5, false);
-        addFundRow(box, fundRows, "Фонд Удовольствий", true, 0, 4, false);
-        addFundRow(box, fundRows, "Фонд Больших Покупок", true, 0, 4, false);
-        addFundRow(box, fundRows, "Фонд Собственного Жилья", true, 10000000, 3, false);
-        addFundRow(box, fundRows, "Фонд Инвестиций", true, 0, 3, false);
-        addFundRow(box, fundRows, "Фонд9", false, 0, 0, false);
-        addFundRow(box, fundRows, "Фонд10", false, 0, 0, false);
+        List<DataStore.FundConfig> existingFunds = store.getFundsForSetup();
+        if (existingFunds.isEmpty()) {
+            addDefaultFundRow(box, fundRows, "Продукты и Быт", true, 0, 0, 41, true, "operational");
+            addDefaultFundRow(box, fundRows, "Съём и Маневренный фонд", true, 200000, 0, 35, false, "goal");
+            addDefaultFundRow(box, fundRows, "Подушка Безопасности", true, 1250000, 0, 5, false, "goal");
+            addDefaultFundRow(box, fundRows, "Фонд Финансовой цели года", true, 500000, 0, 5, false, "goal");
+            addDefaultFundRow(box, fundRows, "Фонд Удовольствий", true, 0, 0, 4, false, "regular");
+            addDefaultFundRow(box, fundRows, "Фонд Больших Покупок", true, 0, 0, 4, false, "regular");
+            addDefaultFundRow(box, fundRows, "Фонд Собственного Жилья", true, 10000000, 0, 3, false, "goal");
+            addDefaultFundRow(box, fundRows, "Фонд Инвестиций", true, 0, 0, 3, false, "regular");
+            addDefaultFundRow(box, fundRows, "Фонд9", false, 0, 0, 0, false, "regular");
+            addDefaultFundRow(box, fundRows, "Фонд10", false, 0, 0, 0, false, "regular");
+        } else {
+            for (DataStore.FundConfig fc : existingFunds) { FundSetupRow r = new FundSetupRow(fc); fundRows.add(r); box.addView(r.view); }
+        }
 
-        Button save = btn("Сохранить настройку"); box.addView(save);
+        Button save = btn(editMode ? "Сохранить изменения" : "Сохранить настройку"); box.addView(save);
         save.setOnClickListener(v -> {
             List<DataStore.AccountConfig> accounts = new ArrayList<>();
             for (AccountSetupRow r : cardRows) { DataStore.AccountConfig c = r.toConfig(); if (c == null) return; accounts.add(c); }
@@ -258,40 +283,120 @@ public class MainActivity extends Activity {
                     .putBoolean(KEY_SETUP_DONE, true)
                     .putInt(KEY_SETUP_SCHEMA_VERSION, DataStore.DB_VERSION)
                     .apply();
-            toast("Настройка сохранена"); d.dismiss(); renderHome();
+            toast(editMode ? "Изменения сохранены" : "Настройка сохранена"); d.dismiss(); renderHome();
         });
         d.setContentView(sv); d.show();
     }
 
-    private void addFundRow(LinearLayout box, List<FundSetupRow> list, String name, boolean active, double target, double percent, boolean operational) { FundSetupRow r = new FundSetupRow(name, active, target, percent, operational); list.add(r); box.addView(r.view); }
+    private DataStore.AccountConfig defaultAccount(String name, boolean active, String type, String currency) {
+        DataStore.AccountConfig c = new DataStore.AccountConfig();
+        c.id = 0; c.name = name; c.active = active; c.type = type; c.currency = currency;
+        c.balance = 0; c.currentDebt = 0; c.creditLimit = 0;
+        return c;
+    }
+
+    private void addDefaultFundRow(LinearLayout box, List<FundSetupRow> list, String name, boolean active, double target, double current, double percent, boolean operational, String type) {
+        DataStore.FundConfig f = new DataStore.FundConfig();
+        f.name = name; f.active = active; f.targetAmount = target; f.initialBalance = current; f.plannedPercent = percent; f.operational = operational; f.type = type;
+        FundSetupRow r = new FundSetupRow(f); list.add(r); box.addView(r.view);
+    }
 
     private class AccountSetupRow {
-        LinearLayout view = new LinearLayout(MainActivity.this); CheckBox active = new CheckBox(MainActivity.this); EditText name = input("Название"); Spinner type = spinner(cardTypes); Spinner currency = spinner(currencies); EditText balance = input("Баланс"); EditText debt = input("Текущая задолженность"); EditText limit = input("Кредитный лимит"); boolean fixedType;
-        AccountSetupRow(String defaultName, boolean isActive, String typeCode, String currencyCode, boolean fixedType) {
-            this.fixedType = fixedType; view.setOrientation(LinearLayout.VERTICAL); view.setPadding(0, 8, 0, 14);
-            active.setText("Активно"); active.setChecked(isActive); name.setText(defaultName); balance.setInputType(8194); debt.setInputType(8194); limit.setInputType(8194);
-            if (DataStore.TYPE_CREDIT.equals(typeCode)) type.setSelection(1); else type.setSelection(0); if ("USD".equals(currencyCode)) currency.setSelection(1); else if ("EUR".equals(currencyCode)) currency.setSelection(2);
-            view.addView(active); view.addView(name);
-            if (!fixedType) { view.addView(label("Тип карты")); view.addView(type); }
-            view.addView(label("Валюта")); view.addView(currency); view.addView(balance); view.addView(debt); view.addView(limit);
-            Runnable refresh = () -> { boolean credit = !fixedType && type.getSelectedItemPosition()==1; balance.setVisibility(credit ? View.GONE : View.VISIBLE); debt.setVisibility(credit ? View.VISIBLE : View.GONE); limit.setVisibility(credit ? View.VISIBLE : View.GONE); };
+        LinearLayout view = new LinearLayout(MainActivity.this);
+        CheckBox active = new CheckBox(MainActivity.this);
+        EditText name = input("Название");
+        Spinner type = spinner(cardTypes);
+        Spinner currency = spinner(currencies);
+        EditText balance = input("Баланс");
+        EditText debt = input("Текущая задолженность");
+        EditText limit = input("Кредитный лимит");
+        TextView lType = label("Тип карты"), lCurrency = label("Валюта"), lBalance = label("Баланс"), lDebt = label("Текущая задолженность"), lLimit = label("Кредитный лимит"), lName = label("Название");
+        long id; boolean fixedType; String fixedTypeCode;
+
+        AccountSetupRow(DataStore.AccountConfig config, boolean fixedType) {
+            this.id = config.id; this.fixedType = fixedType; this.fixedTypeCode = config.type;
+            view.setOrientation(LinearLayout.VERTICAL); view.setPadding(0, 8, 0, 14);
+            active.setText("Активно"); active.setChecked(config.active);
+            name.setText(config.name == null ? "" : config.name);
+            balance.setInputType(8194); debt.setInputType(8194); limit.setInputType(8194);
+            if (config.balance > 0) balance.setText(String.valueOf((long)config.balance));
+            if (config.currentDebt > 0) debt.setText(String.valueOf((long)config.currentDebt));
+            if (config.creditLimit > 0) limit.setText(String.valueOf((long)config.creditLimit));
+            if (DataStore.TYPE_CREDIT.equals(config.type)) type.setSelection(1); else type.setSelection(0);
+            if ("USD".equals(config.currency)) currency.setSelection(1); else if ("EUR".equals(config.currency)) currency.setSelection(2);
+
+            view.addView(active); view.addView(lName); view.addView(name);
+            if (!fixedType) { view.addView(lType); view.addView(type); }
+            view.addView(lCurrency); view.addView(currency);
+            view.addView(lBalance); view.addView(balance); view.addView(lDebt); view.addView(debt); view.addView(lLimit); view.addView(limit);
+            Runnable refresh = () -> {
+                String currentType = fixedType ? fixedTypeCode : cardTypeCodes[type.getSelectedItemPosition()];
+                boolean credit = DataStore.TYPE_CREDIT.equals(currentType);
+                boolean marketplace = DataStore.TYPE_MARKETPLACE.equals(currentType);
+                lBalance.setText(marketplace ? "Баланс кошелька на момент настройки (необязательно)" : "Баланс на момент настройки");
+                setVisible(lBalance, balance, !credit);
+                setVisible(lDebt, debt, credit);
+                setVisible(lLimit, limit, credit);
+            };
             type.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){ public void onItemSelected(android.widget.AdapterView<?> p, View v, int pos, long id){ refresh.run(); } public void onNothingSelected(android.widget.AdapterView<?> p){} }); refresh.run();
         }
+
         DataStore.AccountConfig toConfig() {
-            DataStore.AccountConfig c = new DataStore.AccountConfig(); c.name = name.getText().toString().trim().isEmpty() ? "Без названия" : name.getText().toString().trim(); c.active = active.isChecked(); c.currency = (String)currency.getSelectedItem(); c.type = fixedType ? (c.name.startsWith("Ozon") || c.name.startsWith("WB") ? DataStore.TYPE_MARKETPLACE : DataStore.TYPE_CASH) : cardTypeCodes[type.getSelectedItemPosition()];
-            if (c.active && DataStore.TYPE_CREDIT.equals(c.type)) { c.currentDebt = parseRequired(debt, "Укажите задолженность для " + c.name); if (c.currentDebt < 0) return null; c.creditLimit = parseRequired(limit, "Укажите лимит для " + c.name); if (c.creditLimit < 0) return null; c.balance = 0; }
-            else { if (c.active && (DataStore.TYPE_DEBIT.equals(c.type) || DataStore.TYPE_CASH.equals(c.type))) { c.balance = parseRequired(balance, "Укажите баланс для " + c.name); if (c.balance < 0) return null; } else c.balance = parseOptional(balance); c.currentDebt = 0; c.creditLimit = 0; }
+            DataStore.AccountConfig c = new DataStore.AccountConfig();
+            c.id = id;
+            c.name = name.getText().toString().trim().isEmpty() ? "Без названия" : name.getText().toString().trim();
+            c.active = active.isChecked(); c.currency = (String)currency.getSelectedItem();
+            c.type = fixedType ? fixedTypeCode : cardTypeCodes[type.getSelectedItemPosition()];
+            if (c.active && DataStore.TYPE_CREDIT.equals(c.type)) {
+                c.currentDebt = parseRequired(debt, "Укажите задолженность для " + c.name); if (c.currentDebt < 0) return null;
+                c.creditLimit = parseRequired(limit, "Укажите лимит для " + c.name); if (c.creditLimit < 0) return null;
+                c.balance = 0;
+            } else {
+                if (c.active && (DataStore.TYPE_DEBIT.equals(c.type) || DataStore.TYPE_CASH.equals(c.type))) {
+                    c.balance = parseRequired(balance, "Укажите баланс для " + c.name); if (c.balance < 0) return null;
+                } else c.balance = parseOptional(balance);
+                c.currentDebt = 0; c.creditLimit = 0;
+            }
             return c;
         }
     }
 
     private class FundSetupRow {
-        LinearLayout view = new LinearLayout(MainActivity.this); CheckBox active = new CheckBox(MainActivity.this); EditText name = input("Название фонда"); EditText target = input("Целевая сумма"); EditText percent = input("% распределения"); boolean operational;
-        FundSetupRow(String defaultName, boolean isActive, double targetAmount, double pct, boolean operational) {
-            this.operational = operational; view.setOrientation(LinearLayout.VERTICAL); view.setPadding(0, 8, 0, 14);
-            active.setText("Активен"); active.setChecked(isActive); name.setText(defaultName); target.setInputType(8194); percent.setInputType(8194); if (targetAmount > 0) target.setText(String.valueOf((long)targetAmount)); percent.setText(String.valueOf((long)pct)); view.addView(active); view.addView(name); view.addView(target); view.addView(percent);
+        LinearLayout view = new LinearLayout(MainActivity.this);
+        CheckBox active = new CheckBox(MainActivity.this);
+        EditText name = input("Название фонда");
+        EditText target = input("Целевая сумма");
+        EditText current = input("Текущий баланс фонда");
+        EditText percent = input("% распределения");
+        long id; boolean operational; String typeCode;
+
+        FundSetupRow(DataStore.FundConfig config) {
+            this.id = config.id; this.operational = config.operational; this.typeCode = config.type == null ? (config.operational ? "operational" : "goal") : config.type;
+            view.setOrientation(LinearLayout.VERTICAL); view.setPadding(0, 8, 0, 14);
+            active.setText("Активен"); active.setChecked(config.active);
+            name.setText(config.name == null ? "" : config.name);
+            target.setInputType(8194); current.setInputType(8194); percent.setInputType(8194);
+            if (config.targetAmount > 0) target.setText(String.valueOf((long)config.targetAmount));
+            if (config.initialBalance > 0) current.setText(String.valueOf((long)config.initialBalance));
+            if (config.plannedPercent > 0) percent.setText(String.valueOf((long)config.plannedPercent));
+            view.addView(active);
+            view.addView(label("Название фонда")); view.addView(name);
+            view.addView(label("Целевая сумма (необязательно)")); view.addView(target);
+            view.addView(label("Уже накоплено на момент настройки (необязательно)")); view.addView(current);
+            view.addView(label("% распределения дохода (ориентир, не автоперевод)")); view.addView(percent);
         }
-        DataStore.FundConfig toConfig(){ DataStore.FundConfig f = new DataStore.FundConfig(); f.name = name.getText().toString().trim().isEmpty()?"Фонд":name.getText().toString().trim(); f.active = active.isChecked(); f.targetAmount = parseOptional(target); f.initialBalance = 0; f.plannedPercent = parseOptional(percent); f.operational = operational; f.type = operational ? "operational" : "goal"; return f; }
+        DataStore.FundConfig toConfig(){
+            DataStore.FundConfig f = new DataStore.FundConfig();
+            f.id = id;
+            f.name = name.getText().toString().trim().isEmpty()?"Фонд":name.getText().toString().trim();
+            f.active = active.isChecked();
+            f.targetAmount = parseOptional(target);
+            f.initialBalance = parseOptional(current);
+            f.plannedPercent = parseOptional(percent);
+            f.operational = operational;
+            f.type = typeCode;
+            return f;
+        }
     }
 
     private TextView label(String s){ return tv(s, 13, 1); }

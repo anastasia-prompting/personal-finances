@@ -93,14 +93,73 @@ public class DataStore extends SQLiteOpenHelper {
         return db.insert("credits", null, credit);
     }
 
+    public List<AccountConfig> getAccountsForSetup() {
+        SQLiteDatabase db = getReadableDatabase();
+        List<AccountConfig> list = new ArrayList<>();
+        Cursor c = db.rawQuery("SELECT id,name,type,currency,initial_balance,active,credit_limit,current_debt FROM accounts ORDER BY id", null);
+        try {
+            while (c.moveToNext()) {
+                AccountConfig a = new AccountConfig();
+                a.id = c.getLong(0); a.name = c.getString(1); a.type = c.getString(2); a.currency = c.getString(3);
+                a.balance = c.getDouble(4); a.active = c.getInt(5) == 1; a.creditLimit = c.getDouble(6); a.currentDebt = c.getDouble(7);
+                list.add(a);
+            }
+        } finally { c.close(); }
+        return list;
+    }
+
+    public List<FundConfig> getFundsForSetup() {
+        SQLiteDatabase db = getReadableDatabase();
+        List<FundConfig> list = new ArrayList<>();
+        Cursor c = db.rawQuery("SELECT id,name,type,target_amount,initial_balance,planned_percent,active,operational FROM funds ORDER BY id", null);
+        try {
+            while (c.moveToNext()) {
+                FundConfig f = new FundConfig();
+                f.id = c.getLong(0); f.name = c.getString(1); f.type = c.getString(2); f.targetAmount = c.getDouble(3);
+                f.initialBalance = c.getDouble(4); f.plannedPercent = c.getDouble(5); f.active = c.getInt(6) == 1; f.operational = c.getInt(7) == 1;
+                list.add(f);
+            }
+        } finally { c.close(); }
+        return list;
+    }
+
     public void saveInitialSetup(List<AccountConfig> accounts, List<FundConfig> funds) {
         SQLiteDatabase db = getWritableDatabase(); db.beginTransaction();
         try {
-            db.delete("operations", null, null); db.delete("credits", null, null); db.delete("funds", null, null); db.delete("accounts", null, null);
-            for (AccountConfig a : accounts) addAccount(db, a.name, a.type, a.currency, a.balance, a.active, a.creditLimit, a.currentDebt);
-            for (FundConfig f : funds) addFund(db, f.name, f.type, f.targetAmount, f.initialBalance, f.plannedPercent, f.active, f.operational);
+            // Настройка может открываться повторно с главного экрана. Поэтому не пересоздаём
+            // accounts/funds и не удаляем операции: обновляем существующие строки по id, чтобы
+            // уже внесённые операции не потеряли связи с картами, кошельками, наличными и фондами.
+            for (AccountConfig a : accounts) upsertAccount(db, a);
+            for (FundConfig f : funds) upsertFund(db, f);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
+    }
+
+    private void upsertAccount(SQLiteDatabase db, AccountConfig a) {
+        ContentValues cv = new ContentValues();
+        cv.put("name", a.name); cv.put("type", a.type); cv.put("currency", a.currency); cv.put("initial_balance", a.balance);
+        cv.put("active", a.active ? 1 : 0); cv.put("credit_limit", a.creditLimit); cv.put("current_debt", a.currentDebt);
+        if (a.id > 0) db.update("accounts", cv, "id=?", new String[]{String.valueOf(a.id)});
+        else a.id = db.insert("accounts", null, cv);
+
+        if (a.active && TYPE_CREDIT.equals(a.type)) upsertCreditForCard(db, a.id, a.name, a.currentDebt);
+        else db.delete("credits", "linked_account_id=?", new String[]{String.valueOf(a.id)});
+    }
+
+    private void upsertCreditForCard(SQLiteDatabase db, long accountId, String cardName, double debt) {
+        ContentValues credit = new ContentValues();
+        credit.put("name", "Кредитка: " + cardName); credit.put("current_debt", debt);
+        credit.put("interest_rate", 0); credit.put("min_payment", 0); credit.put("comfortable_payment", 0); credit.put("linked_account_id", accountId);
+        int updated = db.update("credits", credit, "linked_account_id=?", new String[]{String.valueOf(accountId)});
+        if (updated == 0) db.insert("credits", null, credit);
+    }
+
+    private void upsertFund(SQLiteDatabase db, FundConfig f) {
+        ContentValues cv = new ContentValues();
+        cv.put("name", f.name); cv.put("type", f.type); cv.put("target_amount", f.targetAmount); cv.put("initial_balance", f.initialBalance);
+        cv.put("planned_percent", f.plannedPercent); cv.put("active", f.active ? 1 : 0); cv.put("operational", f.operational ? 1 : 0);
+        if (f.id > 0) db.update("funds", cv, "id=?", new String[]{String.valueOf(f.id)});
+        else db.insert("funds", null, cv);
     }
 
     public List<Item> getActiveIncomeDestinations() { return getAccountItems("WHERE active=1 AND type IN ('"+TYPE_DEBIT+"','"+TYPE_CASH+"','"+TYPE_MARKETPLACE+"') ORDER BY id", true); }
@@ -168,8 +227,8 @@ public class DataStore extends SQLiteOpenHelper {
     private List<OperationView> queryOperations(String sql) { SQLiteDatabase db = getReadableDatabase(); List<OperationView> list = new ArrayList<>(); Cursor c = db.rawQuery(sql, null); try { while (c.moveToNext()) { OperationView v = new OperationView(); v.id=c.getLong(0); v.date=c.getString(1); v.type=c.getString(2); v.amount=c.getDouble(3); v.account=c.getString(4); v.targetAccount=c.getString(5); v.fund=c.getString(6); v.category=c.getString(7); v.comment=c.getString(8); v.creditName=c.getString(9); list.add(v); } } finally { c.close(); } return list; }
     private double scalar(SQLiteDatabase db, String sql) { Cursor c = db.rawQuery(sql, null); try { return c.moveToFirst() ? c.getDouble(0) : 0; } finally { c.close(); } }
 
-    public static class AccountConfig { public String name, type, currency; public double balance, creditLimit, currentDebt; public boolean active; }
-    public static class FundConfig { public String name, type; public double targetAmount, initialBalance, plannedPercent; public boolean active, operational; }
+    public static class AccountConfig { public long id; public String name, type, currency; public double balance, creditLimit, currentDebt; public boolean active; }
+    public static class FundConfig { public long id; public String name, type; public double targetAmount, initialBalance, plannedPercent; public boolean active, operational; }
     public static class Item { public long id; public String name, type; public double balance, creditLimit, percent, targetAmount; public boolean active, operational; Item(long id, String name, String type, double balance, double creditLimit, double percent, boolean active, double targetAmount, boolean operational){ this.id=id; this.name=name; this.type=type; this.balance=balance; this.creditLimit=creditLimit; this.percent=percent; this.active=active; this.targetAmount=targetAmount; this.operational=operational; } @Override public String toString(){return name;} }
     public static class Summary { public double totalIncome, totalExpense, cardBalance, cashBalance, marketplaceBalance, fundsTotal, debt; }
     public static class OperationView { public long id; public String date, type, account, targetAccount, fund, creditName, category, comment; public double amount; }

@@ -1,7 +1,0 @@
-com.nastia.financialauditor.app-pngs-0 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\generated\res\pngs\debug
-com.nastia.financialauditor.app-resValues-1 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\generated\res\resValues\debug
-com.nastia.financialauditor.app-packageDebugResources-2 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
-com.nastia.financialauditor.app-packageDebugResources-3 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
-com.nastia.financialauditor.app-debug-4 E:\NEIRO\my_projects\personal-finances\personal-finances\app\build\intermediates\merged_res\debug\mergeDebugResources
-com.nastia.financialauditor.app-debug-5 E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\debug\res
-com.nastia.financialauditor.app-main-6 E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\res
