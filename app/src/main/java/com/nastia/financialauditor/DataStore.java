@@ -227,6 +227,53 @@ public class DataStore extends SQLiteOpenHelper {
     private List<OperationView> queryOperations(String sql) { SQLiteDatabase db = getReadableDatabase(); List<OperationView> list = new ArrayList<>(); Cursor c = db.rawQuery(sql, null); try { while (c.moveToNext()) { OperationView v = new OperationView(); v.id=c.getLong(0); v.date=c.getString(1); v.type=c.getString(2); v.amount=c.getDouble(3); v.account=c.getString(4); v.targetAccount=c.getString(5); v.fund=c.getString(6); v.category=c.getString(7); v.comment=c.getString(8); v.creditName=c.getString(9); list.add(v); } } finally { c.close(); } return list; }
     private double scalar(SQLiteDatabase db, String sql) { Cursor c = db.rawQuery(sql, null); try { return c.moveToFirst() ? c.getDouble(0) : 0; } finally { c.close(); } }
 
+
+    public double currentAccountBalance(long accountId) {
+        SQLiteDatabase db = getReadableDatabase();
+        String type = accountType(accountId);
+        double initial = scalar(db, "SELECT COALESCE(initial_balance,0) FROM accounts WHERE id=" + accountId);
+        if (TYPE_DEBIT.equals(type)) {
+            return initial
+                    + scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_INCOME+"\047 AND account_id=" + accountId)
+                    - scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type IN (\047"+OP_EXPENSE+"\047,\047"+OP_TRANSFER_TO_FUND+"\047,\047"+OP_CREDIT_PAYMENT+"\047,\047"+OP_MARKETPLACE_TRANSFER+"\047) AND account_id=" + accountId);
+        }
+        if (TYPE_CASH.equals(type)) {
+            return initial
+                    + scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_INCOME+"\047 AND account_id=" + accountId)
+                    - scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type IN (\047"+OP_EXPENSE+"\047,\047"+OP_TRANSFER_TO_FUND+"\047,\047"+OP_CREDIT_PAYMENT+"\047) AND account_id=" + accountId);
+        }
+        if (TYPE_MARKETPLACE.equals(type)) {
+            return initial
+                    + scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_INCOME+"\047 AND account_id=" + accountId)
+                    + scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_MARKETPLACE_TRANSFER+"\047 AND target_account_id=" + accountId)
+                    - scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_EXPENSE+"\047 AND account_id=" + accountId);
+        }
+        if (TYPE_CREDIT.equals(type)) {
+            double limit = scalar(db, "SELECT COALESCE(credit_limit,0) FROM accounts WHERE id=" + accountId);
+            return limit - currentCreditDebtForAccount(accountId);
+        }
+        return initial;
+    }
+
+    public double currentFundBalance(long fundId) {
+        SQLiteDatabase db = getReadableDatabase();
+        double initial = scalar(db, "SELECT COALESCE(initial_balance,0) FROM funds WHERE id=" + fundId);
+        double incoming = scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type IN (\047"+OP_TRANSFER_TO_FUND+"\047,\047"+OP_INCOME+"\047) AND fund_id=" + fundId);
+        double outgoing = scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_EXPENSE_FROM_FUND+"\047 AND fund_id=" + fundId);
+        return initial + incoming - outgoing;
+    }
+
+    public double currentCreditDebtForAccount(long accountId) {
+        SQLiteDatabase db = getReadableDatabase();
+        long creditId = creditIdForAccount(accountId);
+        double baseDebt = scalar(db, "SELECT COALESCE(current_debt,0) FROM accounts WHERE id=" + accountId);
+        if (creditId <= 0) return baseDebt;
+        return baseDebt
+                + scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_DEBT_INCREASE+"\047 AND credit_id=" + creditId)
+                + scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_MARKETPLACE_TRANSFER+"\047 AND account_id=" + accountId)
+                - scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type=\047"+OP_CREDIT_PAYMENT+"\047 AND credit_id=" + creditId);
+    }
+
     public static class AccountConfig { public long id; public String name, type, currency; public double balance, creditLimit, currentDebt; public boolean active; }
     public static class FundConfig { public long id; public String name, type; public double targetAmount, initialBalance, plannedPercent; public boolean active, operational; }
     public static class Item { public long id; public String name, type; public double balance, creditLimit, percent, targetAmount; public boolean active, operational; Item(long id, String name, String type, double balance, double creditLimit, double percent, boolean active, double targetAmount, boolean operational){ this.id=id; this.name=name; this.type=type; this.balance=balance; this.creditLimit=creditLimit; this.percent=percent; this.active=active; this.targetAmount=targetAmount; this.operational=operational; } @Override public String toString(){return name;} }

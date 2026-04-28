@@ -2,6 +2,7 @@ package com.nastia.financialauditor;
 
 import android.app.*;
 import android.os.*;
+import android.net.Uri;
 import android.content.*;
 import android.graphics.Color;
 import android.view.*;
@@ -88,7 +89,7 @@ public class MainActivity extends Activity {
         addRecommendation(s);
 
         Button add = btn("+ Добавить операцию"); add.setOnClickListener(v -> showOperationDialog()); content.addView(add);
-        Button export = btn("Экспорт CSV"); export.setOnClickListener(v -> exportCsv()); content.addView(export);
+        Button export = btn("Отправить отчёт"); export.setOnClickListener(v -> shareCsvReport()); content.addView(export);
         Button setup = btn("Настройки финансовой системы"); setup.setOnClickListener(v -> showInitialSetup()); content.addView(setup);
         Button agreement = btn("Пользовательское соглашение"); agreement.setOnClickListener(v -> showAgreement(true)); content.addView(agreement);
         content.addView(tv("Последние операции", 20, 1));
@@ -148,7 +149,7 @@ public class MainActivity extends Activity {
         refresh.run();
 
         View.OnClickListener saver = v -> {
-            double a = parseRequired(amount, "Введите положительную сумму"); if (a <= 0) return;
+            double a = parseRequiredPositive(amount, "Введите сумму больше 0"); if (a <= 0) return;
             String code = typeCodes[type.getSelectedItemPosition()];
             long accId = selectedId(account), targetId = selectedId(targetWallet), fundId = selectedId(fund), creditId = selectedId(credit);
             String cat = category.getVisibility() == View.VISIBLE ? (String) category.getSelectedItem() : "";
@@ -186,8 +187,14 @@ public class MainActivity extends Activity {
                 fundId = 0; cat = "";
             }
 
-            store.addOperation(code, a, accId, targetId, fundId, creditId, cat, comment.getText().toString());
-            toast("Операция сохранена"); amount.setText(""); comment.setText(""); renderHome(); if (v == save) d.dismiss(); else amount.requestFocus();
+            final long finalAccId = accId, finalTargetId = targetId, finalFundId = fundId, finalCreditId = creditId;
+            final String finalCat = cat;
+            Runnable commit = () -> {
+                store.addOperation(code, a, finalAccId, finalTargetId, finalFundId, finalCreditId, finalCat, comment.getText().toString());
+                toast("Операция сохранена"); amount.setText(""); comment.setText(""); renderHome(); if (v == save) d.dismiss(); else amount.requestFocus();
+            };
+            String warning = balanceWarning(code, a, finalAccId, finalFundId);
+            if (warning != null) confirmOverBalance(warning, commit); else commit.run();
         };
         save.setOnClickListener(saver); saveMore.setOnClickListener(saver);
         d.setContentView(sv); d.show();
@@ -216,10 +223,45 @@ public class MainActivity extends Activity {
         }
     }
 
+
+
+    private String balanceWarning(String code, double amount, long accountId, long fundId) {
+        if (DataStore.OP_EXPENSE.equals(code) || DataStore.OP_TRANSFER_TO_FUND.equals(code)
+                || DataStore.OP_CREDIT_PAYMENT.equals(code) || DataStore.OP_MARKETPLACE_TRANSFER.equals(code)) {
+            double available = store.currentAccountBalance(accountId);
+            String type = store.accountType(accountId);
+            if (accountId > 0 && amount > available) {
+                if (DataStore.TYPE_CREDIT.equals(type)) {
+                    return "Доступный лимит кредитки примерно " + money.format(available) + ", а операция на " + money.format(amount) + ". Всё равно сохранить?";
+                }
+                return "В выбранном источнике сейчас примерно " + money.format(available) + ", а операция на " + money.format(amount) + ". Всё равно сохранить?";
+            }
+        }
+        if (DataStore.OP_EXPENSE_FROM_FUND.equals(code) && fundId > 0) {
+            double available = store.currentFundBalance(fundId);
+            if (amount > available) return "В фонде сейчас примерно " + money.format(available) + ", а операция на " + money.format(amount) + ". Всё равно сохранить?";
+        }
+        return null;
+    }
+
+    private void confirmOverBalance(String message, Runnable commit) {
+        new AlertDialog.Builder(this)
+                .setTitle("Проверьте сумму")
+                .setMessage(message)
+                .setNegativeButton("Проверить сумму", null)
+                .setPositiveButton("Всё равно сохранить", (dialog, which) -> commit.run())
+                .show();
+    }
+
     private void showInitialSetup() {
         boolean editMode = getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_SETUP_DONE, false);
-        Dialog d = new Dialog(this); d.setTitle(editMode ? "Настройки финансовой системы" : "Первичная настройка");
+        Dialog d = new Dialog(this);
         ScrollView sv = new ScrollView(this); LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(24, 20, 24, 24); sv.addView(box);
+        LinearLayout header = new LinearLayout(this); header.setOrientation(LinearLayout.HORIZONTAL); header.setGravity(Gravity.CENTER_VERTICAL);
+        header.addView(tv(editMode ? "Настройки финансовой системы" : "Первичная настройка", 20, 1), new LinearLayout.LayoutParams(0, -2, 1));
+        TextView close = tv("×", 28, 1); close.setGravity(Gravity.CENTER); close.setPadding(20, 0, 6, 0); close.setOnClickListener(v -> closeSetupDialog(d, editMode));
+        header.addView(close, new LinearLayout.LayoutParams(-2, -2));
+        box.addView(header);
         box.addView(tv(editMode
                 ? "Можно поправить карты, кошельки, наличные и фонды. Уже внесённые операции не удаляются. Балансы в настройке — базовые значения, операции учитываются отдельно."
                 : "Настроим финансовую систему. Можно оставить предустановленные значения и вернуться к ним позже.", 15, 0));
@@ -288,6 +330,17 @@ public class MainActivity extends Activity {
         d.setContentView(sv); d.show();
     }
 
+
+    private void closeSetupDialog(Dialog d, boolean editMode) {
+        if (editMode) { d.dismiss(); return; }
+        new AlertDialog.Builder(this)
+                .setTitle("Настройка ещё не сохранена")
+                .setMessage("Можно выйти без сохранения, но приложение пока не будет настроено под ваши данные.")
+                .setNegativeButton("Остаться", null)
+                .setPositiveButton("Выйти", (dialog, which) -> d.dismiss())
+                .show();
+    }
+
     private DataStore.AccountConfig defaultAccount(String name, boolean active, String type, String currency) {
         DataStore.AccountConfig c = new DataStore.AccountConfig();
         c.id = 0; c.name = name; c.active = active; c.type = type; c.currency = currency;
@@ -320,7 +373,7 @@ public class MainActivity extends Activity {
             name.setText(config.name == null ? "" : config.name);
             balance.setInputType(8194); debt.setInputType(8194); limit.setInputType(8194);
             if (config.balance > 0) balance.setText(String.valueOf((long)config.balance));
-            if (config.currentDebt > 0) debt.setText(String.valueOf((long)config.currentDebt));
+            if (DataStore.TYPE_CREDIT.equals(config.type)) debt.setText(String.valueOf((long)config.currentDebt));
             if (config.creditLimit > 0) limit.setText(String.valueOf((long)config.creditLimit));
             if (DataStore.TYPE_CREDIT.equals(config.type)) type.setSelection(1); else type.setSelection(0);
             if ("USD".equals(config.currency)) currency.setSelection(1); else if ("EUR".equals(config.currency)) currency.setSelection(2);
@@ -348,13 +401,14 @@ public class MainActivity extends Activity {
             c.active = active.isChecked(); c.currency = (String)currency.getSelectedItem();
             c.type = fixedType ? fixedTypeCode : cardTypeCodes[type.getSelectedItemPosition()];
             if (c.active && DataStore.TYPE_CREDIT.equals(c.type)) {
-                c.currentDebt = parseRequired(debt, "Укажите задолженность для " + c.name); if (c.currentDebt < 0) return null;
-                c.creditLimit = parseRequired(limit, "Укажите лимит для " + c.name); if (c.creditLimit < 0) return null;
+                c.currentDebt = parseRequiredNonNegative(debt, "Укажите задолженность для " + c.name); if (c.currentDebt < 0) return null;
+                c.creditLimit = parseRequiredPositive(limit, "Укажите лимит больше 0 для " + c.name); if (c.creditLimit <= 0) return null;
+                if (c.currentDebt > c.creditLimit) { toast("Задолженность не должна быть больше лимита для " + c.name); return null; }
                 c.balance = 0;
             } else {
                 if (c.active && (DataStore.TYPE_DEBIT.equals(c.type) || DataStore.TYPE_CASH.equals(c.type))) {
-                    c.balance = parseRequired(balance, "Укажите баланс для " + c.name); if (c.balance < 0) return null;
-                } else c.balance = parseOptional(balance);
+                    c.balance = parseRequiredNonNegative(balance, "Укажите баланс для " + c.name); if (c.balance < 0) return null;
+                } else { c.balance = parseOptionalNonNegative(balance, "Проверьте баланс для " + c.name); if (c.balance < 0) return null; }
                 c.currentDebt = 0; c.creditLimit = 0;
             }
             return c;
@@ -390,9 +444,9 @@ public class MainActivity extends Activity {
             f.id = id;
             f.name = name.getText().toString().trim().isEmpty()?"Фонд":name.getText().toString().trim();
             f.active = active.isChecked();
-            f.targetAmount = parseOptional(target);
-            f.initialBalance = parseOptional(current);
-            f.plannedPercent = parseOptional(percent);
+            f.targetAmount = parseOptionalNonNegative(target, "Проверьте целевую сумму фонда " + f.name); if (f.targetAmount < 0) return null;
+            f.initialBalance = parseOptionalNonNegative(current, "Проверьте накопленную сумму фонда " + f.name); if (f.initialBalance < 0) return null;
+            f.plannedPercent = parsePercent(percent, "Проверьте процент фонда " + f.name); if (f.plannedPercent < 0) return null;
             f.operational = operational;
             f.type = typeCode;
             return f;
@@ -411,8 +465,10 @@ public class MainActivity extends Activity {
     private boolean notEmpty(String s){ return s != null && !s.trim().isEmpty(); }
     private String join(List<String> parts, String sep){ StringBuilder b = new StringBuilder(); for (String p: parts){ if (b.length()>0) b.append(sep); b.append(p); } return b.toString(); }
     private void toast(String s){ Toast.makeText(this, s, Toast.LENGTH_SHORT).show(); }
-    private double parseOptional(EditText e){ try { String s=e.getText().toString().trim(); if (s.isEmpty()) return 0; return Double.parseDouble(s.replace(',', '.')); } catch(Exception ex){ return 0; } }
-    private double parseRequired(EditText e, String error){ try { double v = Double.parseDouble(e.getText().toString().trim().replace(',', '.')); if (v < 0) throw new Exception(); return v; } catch(Exception ex){ toast(error); return -1; } }
+    private double parseOptionalNonNegative(EditText e, String error){ try { String s=e.getText().toString().trim(); if (s.isEmpty()) return 0; double v = Double.parseDouble(s.replace(',', '.')); if (v < 0) throw new Exception(); return v; } catch(Exception ex){ toast(error); return -1; } }
+    private double parseRequiredNonNegative(EditText e, String error){ try { String s=e.getText().toString().trim(); if (s.isEmpty()) throw new Exception(); double v = Double.parseDouble(s.replace(',', '.')); if (v < 0) throw new Exception(); return v; } catch(Exception ex){ toast(error); return -1; } }
+    private double parseRequiredPositive(EditText e, String error){ try { String s=e.getText().toString().trim(); if (s.isEmpty()) throw new Exception(); double v = Double.parseDouble(s.replace(',', '.')); if (v <= 0) throw new Exception(); return v; } catch(Exception ex){ toast(error); return -1; } }
+    private double parsePercent(EditText e, String error){ double v = parseOptionalNonNegative(e, error); if (v < 0) return -1; if (v > 100) { toast("Процент должен быть от 0 до 100"); return -1; } return v; }
 
     private void showAgreement(boolean informational) {
         AlertDialog.Builder b = new AlertDialog.Builder(this);
@@ -423,15 +479,33 @@ public class MainActivity extends Activity {
         b.setCancelable(informational); b.show();
     }
 
-    private void exportCsv() {
+    private void shareCsvReport() {
         try {
-            File f = new File(getExternalFilesDir(null), "finance-auditor-operations.csv"); FileWriter w = new FileWriter(f);
-            w.write("date,type,amount,source,target_wallet,fund,credit,category,comment\n");
-            for (DataStore.OperationView op : store.allOperationsForExport()) {
-                w.write(csv(op.date) + "," + csv(op.type) + "," + op.amount + "," + csv(op.account) + "," + csv(op.targetAccount) + "," + csv(op.fund) + "," + csv(op.creditName) + "," + csv(op.category) + "," + csv(op.comment) + "\n");
-            }
-            w.close(); toast("CSV сохранён: " + f.getAbsolutePath());
-        } catch (Exception e) { toast("Не удалось экспортировать CSV: " + e.getMessage()); }
+            File f = writeCsvReport();
+            // MVP-решение: отдаём готовый CSV через стандартное меню Android.
+            // Так пользователь может отправить отчёт на почту, в облако или мессенджер без встроенного SMTP.
+            StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder().build());
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("text/csv");
+            send.putExtra(Intent.EXTRA_SUBJECT, "Отчёт Личного финансового AI-аудитора");
+            send.putExtra(Intent.EXTRA_TEXT, "Во вложении CSV-отчёт по операциям из приложения «Личный финансовый AI-аудитор».");
+            send.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(f));
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(send, "Отправить отчёт"));
+        } catch (Exception e) { toast("Не удалось отправить отчёт: " + e.getMessage()); }
+    }
+
+    private File writeCsvReport() throws IOException {
+        File dir = getExternalFilesDir(null);
+        if (dir == null) throw new IOException("каталог отчёта недоступен");
+        File f = new File(dir, "finance-auditor-operations.csv");
+        FileWriter w = new FileWriter(f);
+        w.write("date,type,amount,source,target_wallet,fund,credit,category,comment\n");
+        for (DataStore.OperationView op : store.allOperationsForExport()) {
+            w.write(csv(op.date) + "," + csv(op.type) + "," + op.amount + "," + csv(op.account) + "," + csv(op.targetAccount) + "," + csv(op.fund) + "," + csv(op.creditName) + "," + csv(op.category) + "," + csv(op.comment) + "\n");
+        }
+        w.close();
+        return f;
     }
     private String csv(String s){ String v = s == null ? "" : s.replace("\r", " ").replace("\n", " ").replace("\"", "\"\""); return "\"" + v + "\""; }
 }
