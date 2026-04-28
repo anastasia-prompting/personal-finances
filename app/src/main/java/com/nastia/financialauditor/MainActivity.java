@@ -4,6 +4,7 @@ import android.app.*;
 import android.os.*;
 import android.net.Uri;
 import android.content.*;
+import androidx.core.content.FileProvider;
 import android.graphics.Color;
 import android.view.*;
 import android.widget.*;
@@ -482,17 +483,23 @@ public class MainActivity extends Activity {
     private void shareCsvReport() {
         try {
             File f = writeCsvReport();
-            // MVP-решение: отдаём готовый CSV через стандартное меню Android.
-            // Так пользователь может отправить отчёт на почту, в облако или мессенджер без встроенного SMTP.
-            StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder().build());
+            // Сторонним приложениям нельзя отдавать file:// (FileUriExposedException с API 24+);
+            // FileProvider публикует безопасный content:// URI по путям из provider_paths.xml.
+            String authority = getPackageName() + ".fileprovider";
+            Uri uri = FileProvider.getUriForFile(this, authority, f);
             Intent send = new Intent(Intent.ACTION_SEND);
             send.setType("text/csv");
             send.putExtra(Intent.EXTRA_SUBJECT, "Отчёт Личного финансового AI-аудитора");
             send.putExtra(Intent.EXTRA_TEXT, "Во вложении CSV-отчёт по операциям из приложения «Личный финансовый AI-аудитор».");
-            send.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(f));
+            send.putExtra(Intent.EXTRA_STREAM, uri);
             send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            // Некоторые почтовые клиенты читают вложение из ClipData, а не только из EXTRA_STREAM.
+            send.setClipData(ClipData.newUri(getContentResolver(), "CSV report", uri));
             startActivity(Intent.createChooser(send, "Отправить отчёт"));
-        } catch (Exception e) { toast("Не удалось отправить отчёт: " + e.getMessage()); }
+        } catch (Exception e) {
+            String msg = e.getMessage();
+            toast("Не удалось отправить отчёт: " + (msg != null && !msg.isEmpty() ? msg : "файл или каталог недоступны"));
+        }
     }
 
     private File writeCsvReport() throws IOException {
