@@ -1,0 +1,53 @@
+-- Merging decision tree log ---
+manifest
+ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:1:1-10:12
+INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:1:1-10:12
+INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:1:1-10:12
+INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:1:1-10:12
+	package
+		INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml
+	android:versionName
+		INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml
+	android:versionCode
+		INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml
+	xmlns:android
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:1:11-69
+application
+ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:5-9:19
+INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:5-9:19
+	android:extractNativeLibs
+		INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml
+	android:label
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:45-79
+	android:resizeableActivity
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:118-151
+	android:allowBackup
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:18-44
+	android:theme
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:80-117
+	android:usesCleartextTraffic
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:2:152-188
+activity#com.nastia.financialauditor.MainActivity
+ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:3:9-8:20
+	android:exported
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:3:48-71
+	android:name
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:3:19-47
+intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:4:13-7:29
+action#android.intent.action.MAIN
+ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:5:17-69
+	android:name
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:5:25-66
+category#android.intent.category.LAUNCHER
+ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:6:17-77
+	android:name
+		ADDED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml:6:27-74
+uses-sdk
+INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml
+INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from E:\NEIRO\my_projects\personal-finances\personal-finances\app\src\main\AndroidManifest.xml

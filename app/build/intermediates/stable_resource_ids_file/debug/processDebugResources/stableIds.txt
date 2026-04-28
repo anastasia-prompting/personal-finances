@@ -1,0 +1,3 @@
+com.nastia.financialauditor:style/AppTheme.Light = 0x7f020001
+com.nastia.financialauditor:style/AppTheme.Dark = 0x7f020000
+com.nastia.financialauditor:string/app_name = 0x7f010000
