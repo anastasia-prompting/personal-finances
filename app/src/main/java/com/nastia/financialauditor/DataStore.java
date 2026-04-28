@@ -14,7 +14,8 @@ import java.util.Locale;
 
 public class DataStore extends SQLiteOpenHelper {
     private static final String DB_NAME = "finance_auditor.db";
-    private static final int DB_VERSION = 2;
+    /** Версия схемы БД (используется и в SharedPreferences первичной настройки). */
+    public static final int DB_VERSION = 2;
 
     public static final String TYPE_DEBIT = "debit_card";
     public static final String TYPE_CREDIT = "credit_card";
@@ -148,8 +149,11 @@ public class DataStore extends SQLiteOpenHelper {
 
     public Summary getSummary() {
         SQLiteDatabase db = getReadableDatabase(); Summary s = new Summary();
-        s.totalIncome = scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type='"+OP_INCOME+"'");
-        s.totalExpense = scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type='"+OP_EXPENSE+"'");
+        // «Месяц» на главном экране: только доходы/расходы типов income и expense за текущий
+        // календарный месяц. Колонка date — yyyy-MM-dd; шаблон LIKE «yyyy-MM%» совпадает с локальным месяцем.
+        String monthLike = new SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(new Date()) + "%";
+        s.totalIncome = scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type='"+OP_INCOME+"' AND date LIKE '" + monthLike + "'");
+        s.totalExpense = scalar(db, "SELECT COALESCE(SUM(amount),0) FROM operations WHERE type='"+OP_EXPENSE+"' AND date LIKE '" + monthLike + "'");
         s.cardBalance = scalar(db, "SELECT COALESCE(SUM(initial_balance),0) FROM accounts WHERE active=1 AND type='"+TYPE_DEBIT+"'") + scalar(db, "SELECT COALESCE(SUM(o.amount),0) FROM operations o JOIN accounts a ON o.account_id=a.id WHERE o.type='"+OP_INCOME+"' AND a.type='"+TYPE_DEBIT+"'") - scalar(db, "SELECT COALESCE(SUM(o.amount),0) FROM operations o JOIN accounts a ON o.account_id=a.id WHERE o.type IN ('"+OP_EXPENSE+"','"+OP_TRANSFER_TO_FUND+"','"+OP_CREDIT_PAYMENT+"','"+OP_MARKETPLACE_TRANSFER+"') AND a.type='"+TYPE_DEBIT+"'");
         s.cashBalance = scalar(db, "SELECT COALESCE(SUM(initial_balance),0) FROM accounts WHERE active=1 AND type='"+TYPE_CASH+"'") + scalar(db, "SELECT COALESCE(SUM(o.amount),0) FROM operations o JOIN accounts a ON o.account_id=a.id WHERE o.type='"+OP_INCOME+"' AND a.type='"+TYPE_CASH+"'") - scalar(db, "SELECT COALESCE(SUM(o.amount),0) FROM operations o JOIN accounts a ON o.account_id=a.id WHERE o.type IN ('"+OP_EXPENSE+"','"+OP_TRANSFER_TO_FUND+"','"+OP_CREDIT_PAYMENT+"') AND a.type='"+TYPE_CASH+"'");
         s.marketplaceBalance = scalar(db, "SELECT COALESCE(SUM(initial_balance),0) FROM accounts WHERE active=1 AND type='"+TYPE_MARKETPLACE+"'") + scalar(db, "SELECT COALESCE(SUM(o.amount),0) FROM operations o JOIN accounts a ON o.account_id=a.id WHERE o.type='"+OP_INCOME+"' AND a.type='"+TYPE_MARKETPLACE+"'") + scalar(db, "SELECT COALESCE(SUM(o.amount),0) FROM operations o JOIN accounts a ON o.target_account_id=a.id WHERE o.type='"+OP_MARKETPLACE_TRANSFER+"' AND a.type='"+TYPE_MARKETPLACE+"'") - scalar(db, "SELECT COALESCE(SUM(o.amount),0) FROM operations o JOIN accounts a ON o.account_id=a.id WHERE o.type='"+OP_EXPENSE+"' AND a.type='"+TYPE_MARKETPLACE+"'");

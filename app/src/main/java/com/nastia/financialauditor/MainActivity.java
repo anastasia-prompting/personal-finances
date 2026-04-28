@@ -16,6 +16,8 @@ public class MainActivity extends Activity {
     private static final String KEY_AGREED = "user_agreed";
     private static final String KEY_DARK = "dark_theme";
     private static final String KEY_SETUP_DONE = "initial_setup_done";
+    /** Совпадает с DataStore.DB_VERSION: при смене схемы / destructive reset нужна повторная настройка. */
+    private static final String KEY_SETUP_SCHEMA_VERSION = "setup_schema_version";
 
     private DataStore store;
     private LinearLayout content;
@@ -36,8 +38,13 @@ public class MainActivity extends Activity {
         setTheme(dark ? R.style.AppTheme_Dark : R.style.AppTheme_Light);
         super.onCreate(b);
         store = new DataStore(this);
-        buildUi();
         SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        // Прототип: после destructive onUpgrade в БД снова сид, а флаг настройки мог остаться true;
+        // сверка с версией схемы снова показывает первичную настройку.
+        if (prefs.getInt(KEY_SETUP_SCHEMA_VERSION, -1) != DataStore.DB_VERSION) {
+            prefs.edit().putBoolean(KEY_SETUP_DONE, false).apply();
+        }
+        buildUi();
         if (!prefs.getBoolean(KEY_AGREED, false)) showAgreement(false);
         else if (!prefs.getBoolean(KEY_SETUP_DONE, false)) showInitialSetup();
     }
@@ -247,7 +254,10 @@ public class MainActivity extends Activity {
             List<DataStore.FundConfig> funds = new ArrayList<>();
             for (FundSetupRow r : fundRows) { DataStore.FundConfig fc = r.toConfig(); if (fc == null) return; funds.add(fc); }
             store.saveInitialSetup(accounts, funds);
-            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean(KEY_SETUP_DONE, true).apply();
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putBoolean(KEY_SETUP_DONE, true)
+                    .putInt(KEY_SETUP_SCHEMA_VERSION, DataStore.DB_VERSION)
+                    .apply();
             toast("Настройка сохранена"); d.dismiss(); renderHome();
         });
         d.setContentView(sv); d.show();
